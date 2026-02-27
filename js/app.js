@@ -21,14 +21,52 @@ const APP = {
 /* ═══════════════════════════════════════
    INIT
 ═══════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   loadWatchlist();
   API.loadSettings();
   updateMarketStatus();
-  await refreshAll();
+
+  // Render immediately with fallback/curated data so the page shows instantly
+  APP.recommendations = ANALYSIS.generateRecommendations({}, APP.settings);
+  APP.newsData = API._getCuratedNews();
+  loadFallbackMarketData();
+  renderDashboard();
+  renderRecommendations();
+  renderNews();
+  renderAlerts();
+
+  // Then fetch live data in the background (no await — non-blocking)
+  refreshAll();
   startAutoRefresh();
 });
+
+function loadFallbackMarketData() {
+  APP.marketData = {
+    indices: {
+      SP500:  API._fallbackIndex('SP500'),
+      NASDAQ: API._fallbackIndex('NASDAQ'),
+      DOW:    API._fallbackIndex('DOW'),
+      FTSE:   API._fallbackIndex('FTSE'),
+      GOLD:   API._fallbackIndex('GOLD'),
+      OIL:    API._fallbackIndex('OIL'),
+      VIX:    API._fallbackIndex('VIX'),
+      BTC:    API._fallbackIndex('BTC')
+    },
+    sectors: [
+      { name:'Technology', emoji:'💻', changePct: 1.2 },
+      { name:'Energy',     emoji:'⚡', changePct: -0.8 },
+      { name:'Financials', emoji:'🏦', changePct: 0.4 },
+      { name:'Healthcare', emoji:'🏥', changePct: 0.9 },
+      { name:'Industrials',emoji:'🏭', changePct: 0.3 },
+      { name:'Consumer',   emoji:'🛒', changePct: -0.1 },
+      { name:'Defence',    emoji:'🛡️', changePct: 1.5 },
+      { name:'Utilities',  emoji:'💡', changePct: -0.5 },
+      { name:'Materials',  emoji:'⛏️', changePct: 0.6 }
+    ],
+    sentiment: { score: 54, label: 'Neutral' }
+  };
+}
 
 /* ─── SETTINGS ─── */
 function loadSettings() {

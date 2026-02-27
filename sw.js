@@ -1,14 +1,22 @@
-/* StockSense AI — Service Worker */
+/* StockSense AI — Service Worker (GitHub Pages safe)
+   No skipWaiting / clients.claim to prevent reload loops */
 const CACHE = 'stocksense-v1';
-const STATIC = [
-  '/', '/index.html', '/css/styles.css',
-  '/js/api.js', '/js/analysis.js', '/js/app.js',
-  '/manifest.json'
-];
 
 self.addEventListener('install', e => {
+  // Cache static assets using relative paths
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(c =>
+      c.addAll([
+        './',
+        './index.html',
+        './css/styles.css',
+        './js/api.js',
+        './js/analysis.js',
+        './js/app.js',
+        './manifest.json'
+      ]).catch(() => { /* ignore cache-add errors */ })
+    )
+    // NO skipWaiting() — prevents reload loop
   );
 });
 
@@ -16,21 +24,32 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    )
+    // NO clients.claim() — prevents reload loop
   );
 });
 
 self.addEventListener('fetch', e => {
-  const { request } = e;
-  // Network-first for API calls; cache-first for static assets
-  if (request.url.includes('finance.yahoo') || request.url.includes('finnhub') || request.url.includes('corsproxy')) {
-    e.respondWith(fetch(request).catch(() => new Response('[]', { headers: { 'Content-Type': 'application/json' } })));
-  } else {
+  const url = e.request.url;
+  // Network-first for external API calls
+  if (url.includes('yahoo.com') || url.includes('finnhub') || url.includes('corsproxy') ||
+      url.includes('gnews') || url.includes('newsapi') || url.includes('dataviz.cnn')) {
     e.respondWith(
-      caches.match(request).then(cached => cached || fetch(request).then(res => {
-        if (res.ok) { const c = res.clone(); caches.open(CACHE).then(cache => cache.put(request, c)); }
-        return res;
-      }))
+      fetch(e.request).catch(() => new Response('null', { headers: { 'Content-Type': 'application/json' } }))
     );
+    return;
   }
+  // Cache-first for static assets
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(res => {
+        if (res && res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match('./index.html'));
+    })
+  );
 });
