@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StockSense AI">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="description" content="AI-powered stock market intelligence for Trading 212 investors">
+  <title>StockSense AI — Your Personal Market Advisor</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════ HEADER ═══════════════════════════ -->
+<header id="app-header">
+  <div class="header-content">
+    <div class="logo">
+      <div class="logo-icon"><i class="fas fa-chart-line"></i></div>
+      <div class="logo-text">StockSense<span class="accent">AI</span></div>
+    </div>
+    <div class="header-right">
+      <div class="market-status" id="market-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">--</span>
+      </div>
+      <button class="icon-btn" id="refresh-btn" title="Refresh" onclick="refreshAll()">
+        <i class="fas fa-sync-alt" id="refresh-icon"></i>
+      </button>
+      <button class="icon-btn" id="settings-btn" title="Settings" onclick="openModal('settings-modal')">
+        <i class="fas fa-cog"></i>
+      </button>
+    </div>
+  </div>
+  <div class="ticker-wrapper">
+    <div class="market-ticker" id="market-ticker">
+      <div class="ticker-track" id="ticker-track">Loading market data...</div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+<main id="app-main">
+
+  <!-- ──────────── DASHBOARD PAGE ──────────── -->
+  <section id="page-dashboard" class="page active">
+
+    <div class="alert-banner" id="alert-banner" style="display:none">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span id="alert-text"></span>
+      <button onclick="dismissAlert()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- AI Insight Banner -->
+    <div class="ai-banner">
+      <div class="ai-brain"><i class="fas fa-brain"></i></div>
+      <div class="ai-text">
+        <div class="ai-title">AI Market Intelligence</div>
+        <div class="ai-subtitle" id="ai-subtitle">Scanning global markets, political events & economic signals...</div>
+      </div>
+      <div class="live-badge">LIVE</div>
+    </div>
+
+    <!-- Market Overview -->
+    <div class="section-header">
+      <h2><i class="fas fa-globe-americas"></i> Markets</h2>
+      <span class="updated-time" id="last-updated">--</span>
+    </div>
+    <div class="cards-row" id="market-cards">
+      <div class="mkt-card" id="card-SP500"><div class="mkt-label">S&P 500</div><div class="mkt-val" id="sp500-val">--</div><div class="mkt-chg neutral" id="sp500-chg">--</div></div>
+      <div class="mkt-card" id="card-NASDAQ"><div class="mkt-label">NASDAQ</div><div class="mkt-val" id="nasdaq-val">--</div><div class="mkt-chg neutral" id="nasdaq-chg">--</div></div>
+      <div class="mkt-card" id="card-DOW"><div class="mkt-label">DOW</div><div class="mkt-val" id="dow-val">--</div><div class="mkt-chg neutral" id="dow-chg">--</div></div>
+      <div class="mkt-card" id="card-FTSE"><div class="mkt-label">FTSE 100</div><div class="mkt-val" id="ftse-val">--</div><div class="mkt-chg neutral" id="ftse-chg">--</div></div>
+      <div class="mkt-card" id="card-GOLD"><div class="mkt-label">Gold</div><div class="mkt-val" id="gold-val">--</div><div class="mkt-chg neutral" id="gold-chg">--</div></div>
+      <div class="mkt-card" id="card-OIL"><div class="mkt-label">Oil (WTI)</div><div class="mkt-val" id="oil-val">--</div><div class="mkt-chg neutral" id="oil-chg">--</div></div>
+      <div class="mkt-card" id="card-VIX"><div class="mkt-label">Fear Index</div><div class="mkt-val" id="vix-val">--</div><div class="mkt-chg neutral" id="vix-chg">--</div></div>
+      <div class="mkt-card" id="card-BTC"><div class="mkt-label">Bitcoin</div><div class="mkt-val" id="btc-val">--</div><div class="mkt-chg neutral" id="btc-chg">--</div></div>
+    </div>
+
+    <!-- Top Picks -->
+    <div class="section-header">
+      <h2><i class="fas fa-fire"></i> Today's Best Picks</h2>
+      <button class="link-btn" onclick="navigateTo('recommendations')">View All →</button>
+    </div>
+    <div id="top-picks-container"><div class="skeleton"></div><div class="skeleton"></div></div>
+
+    <!-- Political/Economic Alerts -->
+    <div class="section-header">
+      <h2><i class="fas fa-globe"></i> Market-Moving Events</h2>
+      <button class="link-btn" onclick="navigateTo('news')">All News →</button>
+    </div>
+    <div id="event-alerts-container"><div class="skeleton"></div><div class="skeleton"></div></div>
+
+    <!-- Sector Heatmap -->
+    <div class="section-header">
+      <h2><i class="fas fa-th"></i> Sector Heat</h2>
+    </div>
+    <div class="sector-grid" id="sector-grid"></div>
+
+    <!-- Market Sentiment -->
+    <div class="section-header">
+      <h2><i class="fas fa-balance-scale"></i> Market Sentiment</h2>
+    </div>
+    <div class="sentiment-card">
+      <div class="gauge-wrap">
+        <canvas id="gauge-canvas" width="180" height="110"></canvas>
+        <div class="gauge-overlay">
+          <div class="gauge-num" id="gauge-num">--</div>
+          <div class="gauge-lbl" id="gauge-lbl">Loading...</div>
+        </div>
+      </div>
+      <div class="sentiment-bars">
+        <div class="sbar-item">
+          <span>Momentum</span>
+          <div class="sbar"><div class="sbar-fill" id="bar-momentum" style="width:0%"></div></div>
+        </div>
+        <div class="sbar-item">
+          <span>Safe Havens</span>
+          <div class="sbar"><div class="sbar-fill red" id="bar-safehaven" style="width:0%"></div></div>
+        </div>
+        <div class="sbar-item">
+          <span>Volatility</span>
+          <div class="sbar"><div class="sbar-fill yellow" id="bar-volatility" style="width:0%"></div></div>
+        </div>
+        <div class="sbar-item">
+          <span>Breadth</span>
+          <div class="sbar"><div class="sbar-fill" id="bar-breadth" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ──────────── RECOMMENDATIONS PAGE ──────────── -->
+  <section id="page-recommendations" class="page">
+    <div class="page-hdr">
+      <h1><i class="fas fa-robot"></i> AI Stock Picks</h1>
+      <p>Real-time recommendations based on global events, earnings & technical signals</p>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab active" data-tab="short-term" onclick="switchTab(this)"><i class="fas fa-bolt"></i> Short Term</button>
+      <button class="tab" data-tab="long-term" onclick="switchTab(this)"><i class="fas fa-seedling"></i> Long Term</button>
+      <button class="tab" data-tab="avoid" onclick="switchTab(this)"><i class="fas fa-ban"></i> Avoid</button>
+    </div>
+
+    <div id="short-term" class="tab-panel active">
+      <div class="tip-box"><i class="fas fa-bolt"></i> <strong>Short-term (days–3 months):</strong> Based on catalysts, momentum, news events & technical signals.</div>
+      <div id="short-term-list"></div>
+    </div>
+    <div id="long-term" class="tab-panel">
+      <div class="tip-box"><i class="fas fa-seedling"></i> <strong>Long-term (6 months–5 years):</strong> Based on fundamentals, macro trends & sector positioning.</div>
+      <div id="long-term-list"></div>
+    </div>
+    <div id="avoid" class="tab-panel">
+      <div class="tip-box warn"><i class="fas fa-skull-crossbones"></i> <strong>Avoid / Consider Selling:</strong> Stocks with high risk, negative catalysts or deteriorating fundamentals.</div>
+      <div id="avoid-list"></div>
+    </div>
+  </section>
+
+  <!-- ──────────── NEWS PAGE ──────────── -->
+  <section id="page-news" class="page">
+    <div class="page-hdr">
+      <h1><i class="fas fa-newspaper"></i> Global Market News</h1>
+      <p>Political, economic & financial events — with stock impact analysis</p>
+    </div>
+    <div class="filter-row" id="news-filters">
+      <button class="chip active" data-filter="all" onclick="filterNews(this)">All</button>
+      <button class="chip" data-filter="political" onclick="filterNews(this)">Political</button>
+      <button class="chip" data-filter="economic" onclick="filterNews(this)">Economic</button>
+      <button class="chip" data-filter="earnings" onclick="filterNews(this)">Earnings</button>
+      <button class="chip" data-filter="tech" onclick="filterNews(this)">Tech</button>
+      <button class="chip" data-filter="energy" onclick="filterNews(this)">Energy</button>
+      <button class="chip" data-filter="defense" onclick="filterNews(this)">Defense</button>
+    </div>
+    <div id="news-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+  </section>
+
+  <!-- ──────────── WATCHLIST PAGE ──────────── -->
+  <section id="page-watchlist" class="page">
+    <div class="page-hdr">
+      <h1><i class="fas fa-star"></i> My Watchlist</h1>
+      <p>Track your personal portfolio of stocks</p>
+    </div>
+    <div class="search-row">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="stock-search" placeholder="Add stock (e.g. AAPL, TSLA, NVDA)"
+               onkeydown="if(event.key==='Enter')addToWatchlist()" autocomplete="off" autocorrect="off" autocapitalize="characters">
+      </div>
+      <button class="add-btn" onclick="addToWatchlist()"><i class="fas fa-plus"></i></button>
+    </div>
+    <div id="watchlist-items">
+      <div class="empty-state" id="wl-empty">
+        <i class="fas fa-star"></i>
+        <h3>Your watchlist is empty</h3>
+        <p>Search above and add stocks to track them here</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────── ALERTS PAGE ──────────── -->
+  <section id="page-alerts" class="page">
+    <div class="page-hdr">
+      <h1><i class="fas fa-bell"></i> Smart Alerts</h1>
+      <p>Your personal market guardian — protecting you from losses</p>
+    </div>
+    <div id="alerts-feed"></div>
+    <div class="alerts-config">
+      <h3>Alert Preferences</h3>
+      <div class="toggle-row">
+        <div><div class="trow-label">Price Spike Alerts (±5%)</div><div class="trow-desc">Notify when stocks move significantly</div></div>
+        <label class="toggle"><input type="checkbox" id="tog-price" checked><span class="tslider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="trow-label">Political Event Impact</div><div class="trow-desc">News that could move specific sectors</div></div>
+        <label class="toggle"><input type="checkbox" id="tog-political" checked><span class="tslider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="trow-label">AI Opportunity Alerts</div><div class="trow-desc">When AI spots a high-confidence opportunity</div></div>
+        <label class="toggle"><input type="checkbox" id="tog-ai" checked><span class="tslider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="trow-label">Earnings Reminders</div><div class="trow-desc">Upcoming earnings for your watchlist stocks</div></div>
+        <label class="toggle"><input type="checkbox" id="tog-earnings" checked><span class="tslider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="trow-label">Market Open/Close</div><div class="trow-desc">US market session alerts</div></div>
+        <label class="toggle"><input type="checkbox" id="tog-session" checked><span class="tslider"></span></label>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════════ BOTTOM NAV ═══════════════════════════ -->
+<nav id="bottom-nav">
+  <button class="nav-btn active" data-page="dashboard" onclick="navigateTo('dashboard')">
+    <i class="fas fa-home"></i><span>Home</span>
+  </button>
+  <button class="nav-btn" data-page="recommendations" onclick="navigateTo('recommendations')">
+    <i class="fas fa-robot"></i><span>AI Picks</span>
+  </button>
+  <button class="nav-btn" data-page="news" onclick="navigateTo('news')">
+    <i class="fas fa-newspaper"></i><span>News</span>
+  </button>
+  <button class="nav-btn" data-page="watchlist" onclick="navigateTo('watchlist')">
+    <i class="fas fa-star"></i><span>Watchlist</span>
+  </button>
+  <button class="nav-btn" data-page="alerts" onclick="navigateTo('alerts')">
+    <i class="fas fa-bell"></i><span>Alerts</span>
+    <span class="nav-badge" id="alert-count" style="display:none">0</span>
+  </button>
+</nav>
+
+<!-- ═══════════════════════════ SETTINGS MODAL ═══════════════════════════ -->
+<div class="modal" id="settings-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-hdr">
+      <h2><i class="fas fa-cog"></i> Settings</h2>
+      <button class="modal-close" onclick="closeModal('settings-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="setting-section">
+        <h3>API Keys <span class="optional-tag">Optional — enhances data quality</span></h3>
+        <p class="setting-note">App works fully without API keys using curated intelligence. Add keys for real-time live data.</p>
+        <div class="api-row">
+          <label>Finnhub API Key <a href="https://finnhub.io" target="_blank" class="get-key">Get free →</a></label>
+          <input type="text" id="key-finnhub" placeholder="e.g. cq5abc1234...">
+        </div>
+        <div class="api-row">
+          <label>Alpha Vantage API Key <a href="https://www.alphavantage.co/support/#api-key" target="_blank" class="get-key">Get free →</a></label>
+          <input type="text" id="key-alphavantage" placeholder="e.g. DEMO">
+        </div>
+        <div class="api-row">
+          <label>NewsAPI Key <a href="https://newsapi.org" target="_blank" class="get-key">Get free →</a></label>
+          <input type="text" id="key-newsapi" placeholder="e.g. 1234abcd...">
+        </div>
+      </div>
+      <div class="setting-section">
+        <h3>Trading Preferences</h3>
+        <div class="setting-row">
+          <span>Risk Tolerance</span>
+          <select id="risk-level">
+            <option value="low">Conservative</option>
+            <option value="medium" selected>Moderate</option>
+            <option value="high">Aggressive</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <span>Base Currency</span>
+          <select id="currency">
+            <option value="USD">USD $</option>
+            <option value="GBP">GBP £</option>
+            <option value="EUR">EUR €</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <span>Exchange Focus</span>
+          <select id="exchange-focus">
+            <option value="all">Global (All)</option>
+            <option value="us">US Markets</option>
+            <option value="uk">UK/EU Markets</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-section">
+        <h3>App Behaviour</h3>
+        <div class="toggle-row">
+          <div><div class="trow-label">Auto-refresh (every 5 min)</div></div>
+          <label class="toggle"><input type="checkbox" id="tog-autorefresh" checked><span class="tslider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div><div class="trow-label">Show Trading 212 links</div></div>
+          <label class="toggle"><input type="checkbox" id="tog-t212" checked><span class="tslider"></span></label>
+        </div>
+      </div>
+      <button class="primary-btn" onclick="saveSettings()"><i class="fas fa-save"></i> Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ STOCK DETAIL MODAL ═══════════════════════════ -->
+<div class="modal" id="stock-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-hdr">
+      <h2 id="stock-modal-title">Stock Details</h2>
+      <button class="modal-close" onclick="closeModal('stock-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="stock-modal-body"></div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="toast" id="toast"></div>
+
+<script src="js/api.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/app.js"></script>
+<script>
+  // Register Service Worker for PWA / offline support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
