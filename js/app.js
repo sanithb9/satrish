@@ -1,752 +1,691 @@
-/* ══════════════════════════════════════════════════════════════
-   StockSense AI — Main App Controller
-   ══════════════════════════════════════════════════════════════ */
+/* ================================================================
+   StockSense AI — Main App Logic
+   Rule: render FIRST with static data, then update with live data.
+   Every DOM write is wrapped in try/catch.
+   ================================================================ */
 
-/* ─── APP STATE ─── */
-const APP = {
-  currentPage: 'dashboard',
-  currentTab: 'short-term',
-  settings: {},
-  watchlist: [],
-  alerts: [],
-  marketData: {},
-  recommendations: {},
-  priceData: {},
-  newsData: [],
-  refreshTimer: null,
-  gaugeChart: null,
-  newsFilter: 'all'
+/* ── APP STATE ── */
+var APP = {
+  page:       'home',
+  newsFilter: 'all',
+  watchlist:  [],
+  settings:   {},
+  recs:       { short: [], long: [], avoid: [] },
+  liveTimer:  null
 };
 
-/* ═══════════════════════════════════════
-   INIT
-═══════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-  loadSettings();
-  loadWatchlist();
-  API.loadSettings();
-  updateMarketStatus();
-
-  // Render immediately with fallback/curated data so the page shows instantly
-  APP.recommendations = ANALYSIS.generateRecommendations({}, APP.settings);
-  APP.newsData = API._getCuratedNews();
-  loadFallbackMarketData();
-  renderDashboard();
-  renderRecommendations();
-  renderNews();
-  renderAlerts();
-
-  // Then fetch live data in the background (no await — non-blocking)
-  refreshAll();
-  startAutoRefresh();
+/* ════════════════════════════════════════
+   BOOT — runs as soon as DOM is ready
+════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', function() {
+  try { loadSettings(); }   catch(e) { console.error('loadSettings', e); }
+  try { loadWatchlist(); }  catch(e) { console.error('loadWatchlist', e); }
+  try { apiLoadKeys(); }    catch(e) {}
+  try { updateMarketStatus(); } catch(e) {}
+  try { initRecs(); }       catch(e) { console.error('initRecs', e); }
+  try { renderHome(); }     catch(e) { console.error('renderHome', e); }
+  try { renderPicks(); }    catch(e) { console.error('renderPicks', e); }
+  try { renderNews('all'); }catch(e) { console.error('renderNews', e); }
+  try { renderAlerts(); }   catch(e) { console.error('renderAlerts', e); }
+  try { renderWatchlist(); }catch(e) { console.error('renderWatchlist', e); }
+  try { drawGauge(54); }    catch(e) {}
+  // Background live-data fetch — never blocks initial render
+  setTimeout(function() {
+    try { liveRefresh(); } catch(e) {}
+  }, 100);
+  // Auto-refresh every 5 minutes
+  APP.liveTimer = setInterval(function() {
+    try { liveRefresh(); } catch(e) {}
+  }, 5 * 60 * 1000);
 });
 
-function loadFallbackMarketData() {
-  APP.marketData = {
-    indices: {
-      SP500:  API._fallbackIndex('SP500'),
-      NASDAQ: API._fallbackIndex('NASDAQ'),
-      DOW:    API._fallbackIndex('DOW'),
-      FTSE:   API._fallbackIndex('FTSE'),
-      GOLD:   API._fallbackIndex('GOLD'),
-      OIL:    API._fallbackIndex('OIL'),
-      VIX:    API._fallbackIndex('VIX'),
-      BTC:    API._fallbackIndex('BTC')
-    },
-    sectors: [
-      { name:'Technology', emoji:'💻', changePct: 1.2 },
-      { name:'Energy',     emoji:'⚡', changePct: -0.8 },
-      { name:'Financials', emoji:'🏦', changePct: 0.4 },
-      { name:'Healthcare', emoji:'🏥', changePct: 0.9 },
-      { name:'Industrials',emoji:'🏭', changePct: 0.3 },
-      { name:'Consumer',   emoji:'🛒', changePct: -0.1 },
-      { name:'Defence',    emoji:'🛡️', changePct: 1.5 },
-      { name:'Utilities',  emoji:'💡', changePct: -0.5 },
-      { name:'Materials',  emoji:'⛏️', changePct: 0.6 }
-    ],
-    sentiment: { score: 54, label: 'Neutral' }
-  };
+/* ── Build recommendations from data.js ── */
+function initRecs() {
+  APP.recs = buildRecommendations(APP.settings.risk || 'medium');
 }
 
-/* ─── SETTINGS ─── */
+/* ════════════════════════════════════════
+   SETTINGS
+════════════════════════════════════════ */
 function loadSettings() {
   try {
-    APP.settings = JSON.parse(localStorage.getItem('stocksense_settings') || '{}');
+    APP.settings = JSON.parse(localStorage.getItem('ss_settings') || '{}');
   } catch(e) { APP.settings = {}; }
-
-  // Apply saved settings to UI
-  if (APP.settings.riskLevel) document.getElementById('risk-level').value = APP.settings.riskLevel;
-  if (APP.settings.currency) document.getElementById('currency').value = APP.settings.currency;
-  if (APP.settings.exchangeFocus) document.getElementById('exchange-focus').value = APP.settings.exchangeFocus;
-  if (APP.settings.finnhub) document.getElementById('key-finnhub').value = APP.settings.finnhub;
-  if (APP.settings.alphavantage) document.getElementById('key-alphavantage').value = APP.settings.alphavantage;
-  if (APP.settings.newsapi) document.getElementById('key-newsapi').value = APP.settings.newsapi;
-  if (APP.settings.autoRefresh === false) document.getElementById('tog-autorefresh').checked = false;
+  try { if (APP.settings.risk)    document.getElementById('setting-risk').value = APP.settings.risk; } catch(e) {}
+  try { if (APP.settings.currency) document.getElementById('setting-currency').value = APP.settings.currency; } catch(e) {}
+  try { if (APP.settings.finnhub)  document.getElementById('setting-finnhub').value = APP.settings.finnhub; } catch(e) {}
+  try { if (APP.settings.newsapi)  document.getElementById('setting-newsapi').value = APP.settings.newsapi; } catch(e) {}
+  try { if (APP.settings.t212 === false) document.getElementById('setting-t212').checked = false; } catch(e) {}
+  try { if (APP.settings.autorefresh === false) document.getElementById('setting-autorefresh').checked = false; } catch(e) {}
 }
 
 function saveSettings() {
-  APP.settings = {
-    riskLevel: document.getElementById('risk-level').value,
-    currency: document.getElementById('currency').value,
-    exchangeFocus: document.getElementById('exchange-focus').value,
-    finnhub: document.getElementById('key-finnhub').value.trim(),
-    alphavantage: document.getElementById('key-alphavantage').value.trim(),
-    newsapi: document.getElementById('key-newsapi').value.trim(),
-    autoRefresh: document.getElementById('tog-autorefresh').checked,
-    showT212: document.getElementById('tog-t212').checked
-  };
-  localStorage.setItem('stocksense_settings', JSON.stringify(APP.settings));
-  API.loadSettings();
-  closeModal('settings-modal');
-  showToast('Settings saved!', 'ok');
-  refreshAll();
+  try {
+    APP.settings = {
+      risk:        document.getElementById('setting-risk').value,
+      currency:    document.getElementById('setting-currency').value,
+      finnhub:     document.getElementById('setting-finnhub').value.trim(),
+      newsapi:     document.getElementById('setting-newsapi').value.trim(),
+      t212:        document.getElementById('setting-t212').checked,
+      autorefresh: document.getElementById('setting-autorefresh').checked
+    };
+    localStorage.setItem('ss_settings', JSON.stringify(APP.settings));
+    apiLoadKeys();
+    closeModal('settings-modal');
+    showToast('Settings saved!', 'ok');
+    initRecs();
+    renderPicks();
+  } catch(e) { showToast('Error saving settings', 'err'); }
 }
 
-/* ─── WATCHLIST ─── */
+/* ════════════════════════════════════════
+   WATCHLIST
+════════════════════════════════════════ */
 function loadWatchlist() {
-  try {
-    APP.watchlist = JSON.parse(localStorage.getItem('stocksense_watchlist') || '[]');
-  } catch(e) { APP.watchlist = []; }
+  try { APP.watchlist = JSON.parse(localStorage.getItem('ss_watchlist') || '[]'); }
+  catch(e) { APP.watchlist = []; }
 }
-
 function saveWatchlist() {
-  localStorage.setItem('stocksense_watchlist', JSON.stringify(APP.watchlist));
+  localStorage.setItem('ss_watchlist', JSON.stringify(APP.watchlist));
 }
-
-async function addToWatchlist() {
-  const input = document.getElementById('stock-search');
-  const symbol = input.value.trim().toUpperCase().replace(/[^A-Z0-9.-]/g, '');
-  if (!symbol) return;
-  if (APP.watchlist.includes(symbol)) { showToast(`${symbol} already in watchlist`, 'info'); return; }
-  APP.watchlist.push(symbol);
-  saveWatchlist();
-  input.value = '';
-  showToast(`Added ${symbol} to watchlist`, 'ok');
-  renderWatchlist();
-}
-
-function removeFromWatchlist(symbol) {
-  APP.watchlist = APP.watchlist.filter(s => s !== symbol);
-  saveWatchlist();
-  renderWatchlist();
-  showToast(`Removed ${symbol}`, 'info');
-}
-
-async function renderWatchlist() {
-  const container = document.getElementById('watchlist-items');
-  const empty = document.getElementById('wl-empty');
-
-  if (APP.watchlist.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
-
-  // Fetch prices for watchlist
-  let prices = {};
-  if (APP.watchlist.length > 0) {
-    const data = await API.getStockPrices(APP.watchlist);
-    if (data) prices = data;
-  }
-
-  // Remove old watchlist items (not the empty state)
-  container.querySelectorAll('.wl-item').forEach(el => el.remove());
-
-  APP.watchlist.forEach(symbol => {
-    const q = prices[symbol] || {};
-    const price = q.price || '--';
-    const chgPct = q.changePct || 0;
-    const chgStr = chgPct !== 0 ? `${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%` : '--';
-    const cls = chgPct >= 0 ? 'up' : 'dn';
-    const known = ANALYSIS.stocks[symbol];
-
-    const div = document.createElement('div');
-    div.className = 'wl-item';
-    div.onclick = () => openStockDetail(symbol);
-    div.innerHTML = `
-      <div class="wl-sym">${symbol}</div>
-      <div class="wl-name">${known?.name || q.name || symbol}</div>
-      <div class="wl-right">
-        <div class="wl-price">${typeof price === 'number' ? '$' + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : price}</div>
-        <div class="wl-chg ${cls}">${chgStr}</div>
-      </div>
-      <button class="wl-remove" onclick="event.stopPropagation();removeFromWatchlist('${symbol}')">
-        <i class="fas fa-times"></i>
-      </button>`;
-    container.appendChild(div);
-  });
-}
-
-/* ═══════════════════════════════════════
-   MAIN REFRESH
-═══════════════════════════════════════ */
-async function refreshAll() {
-  const btn = document.getElementById('refresh-btn');
-  btn.classList.add('spinning');
-
+function addWatchlist() {
   try {
-    await Promise.all([
-      loadMarketData(),
-      loadNews(),
-    ]);
-    await loadRecommendations();
-    renderDashboard();
-    renderRecommendations();
-    renderNews();
-    renderAlerts();
-    if (APP.currentPage === 'watchlist') renderWatchlist();
-
-    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
-  } catch(e) {
-    console.error('Refresh error:', e);
-  }
-
-  btn.classList.remove('spinning');
+    var inp = document.getElementById('wl-search');
+    var sym = (inp.value || '').trim().toUpperCase().replace(/[^A-Z0-9.]/g, '');
+    if (!sym) return;
+    if (APP.watchlist.indexOf(sym) !== -1) { showToast(sym + ' already in watchlist', 'info'); return; }
+    APP.watchlist.push(sym);
+    saveWatchlist();
+    inp.value = '';
+    renderWatchlist();
+    showToast('Added ' + sym, 'ok');
+    // Fetch live price immediately
+    fetchStockPrices([sym]).then(function(prices) {
+      if (prices && prices[sym]) renderWatchlist(prices);
+    }).catch(function() {});
+  } catch(e) {}
+}
+function removeWatchlist(sym) {
+  APP.watchlist = APP.watchlist.filter(function(s) { return s !== sym; });
+  saveWatchlist();
+  renderWatchlist();
+  showToast('Removed ' + sym, 'info');
 }
 
-async function loadMarketData() {
-  const [indices, sectors, sentiment] = await Promise.all([
-    API.getMarketIndices(),
-    API.getSectorPerformance(),
-    API.getFearGreedIndex()
-  ]);
-  APP.marketData = { indices, sectors, sentiment };
+/* ════════════════════════════════════════
+   LIVE DATA REFRESH
+════════════════════════════════════════ */
+function doRefresh() {
+  try {
+    var btn = document.getElementById('btn-refresh');
+    if (btn) btn.classList.add('spin');
+    liveRefresh().then(function() {
+      if (btn) btn.classList.remove('spin');
+    }).catch(function() {
+      if (btn) btn.classList.remove('spin');
+    });
+  } catch(e) {}
 }
 
-async function loadRecommendations() {
-  // Fetch prices for all tracked stocks
-  const symbols = Object.keys(ANALYSIS.stocks);
-  const priceData = await API.getStockPrices(symbols);
-  APP.priceData = priceData || {};
-  APP.recommendations = ANALYSIS.generateRecommendations(APP.priceData, APP.settings);
+function liveRefresh() {
+  return Promise.all([
+    fetchIndices().then(function(data) {
+      if (data) updateMarketCards(data);
+      updateTimestamp();
+      updateTicker(data);
+    }).catch(function() {}),
+    fetchFearGreed().then(function(fg) {
+      if (fg) updateGauge(fg.score, fg.label);
+    }).catch(function() {}),
+    fetchStockPrices(Object.keys(STOCKS)).then(function(prices) {
+      if (prices) updateStockPrices(prices);
+    }).catch(function() {})
+  ]).catch(function() {});
 }
 
-async function loadNews() {
-  APP.newsData = await API.getMarketNews();
-}
-
-function startAutoRefresh() {
-  if (APP.refreshTimer) clearInterval(APP.refreshTimer);
-  if (APP.settings.autoRefresh !== false) {
-    APP.refreshTimer = setInterval(refreshAll, 5 * 60 * 1000);
-  }
-}
-
-/* ═══════════════════════════════════════
-   MARKET STATUS
-═══════════════════════════════════════ */
+/* ════════════════════════════════════════
+   MARKET STATUS (no network needed)
+════════════════════════════════════════ */
 function updateMarketStatus() {
-  const now = new Date();
-  const utcHour = now.getUTCHours();
-  const utcMin = now.getUTCMinutes();
-  const utcDay = now.getUTCDay();
-  const totalMin = utcHour * 60 + utcMin;
-  const dot = document.getElementById('status-dot');
-  const txt = document.getElementById('status-text');
-
-  if (utcDay === 0 || utcDay === 6) {
-    dot.className = 'status-dot closed';
-    txt.textContent = 'Weekend';
-  } else if (totalMin >= 840 && totalMin < 1260) { // 14:00-21:00 UTC = 9:30-16:00 ET
-    dot.className = 'status-dot open';
-    txt.textContent = 'US Market Open';
-  } else if (totalMin >= 720 && totalMin < 840) {
-    dot.className = 'status-dot pre';
-    txt.textContent = 'Pre-Market';
-  } else if (totalMin >= 1260 && totalMin < 1440) {
-    dot.className = 'status-dot pre';
-    txt.textContent = 'After-Hours';
+  var now = new Date();
+  var day = now.getUTCDay();
+  var h   = now.getUTCHours();
+  var m   = now.getUTCMinutes();
+  var tot = h * 60 + m;
+  var dot = document.getElementById('dot-status');
+  var txt = document.getElementById('txt-status');
+  if (!dot || !txt) return;
+  dot.className = '';
+  if (day === 0 || day === 6) {
+    dot.classList.add('closed'); txt.textContent = 'Weekend';
+  } else if (tot >= 840 && tot < 1260) {
+    dot.classList.add('open');   txt.textContent = 'US Market Open';
+  } else if (tot >= 720 && tot < 840) {
+    dot.classList.add('pre');    txt.textContent = 'Pre-Market';
+  } else if (tot >= 1260 && tot < 1380) {
+    dot.classList.add('pre');    txt.textContent = 'After-Hours';
   } else {
-    dot.className = 'status-dot closed';
-    txt.textContent = 'US Closed';
+    dot.classList.add('closed'); txt.textContent = 'US Closed';
   }
 }
+setInterval(updateMarketStatus, 60000);
 
-/* ═══════════════════════════════════════
-   RENDER DASHBOARD
-═══════════════════════════════════════ */
-function renderDashboard() {
-  renderMarketCards();
-  renderTicker();
+function updateTimestamp() {
+  var el = document.getElementById('txt-updated');
+  if (el) el.textContent = 'Updated ' + new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+}
+
+/* ════════════════════════════════════════
+   RENDER HOME
+════════════════════════════════════════ */
+function renderHome() {
   renderSectors();
-  renderSentiment();
   renderTopPicks();
   renderEventAlerts();
-  updateAIBanner();
+  updateAIHeadline();
 }
 
-function renderMarketCards() {
-  const idx = APP.marketData.indices || {};
-  const map = {
-    'sp500': { data: idx.SP500,  fmt: v => '$' + v.toLocaleString('en', {maximumFractionDigits:0}) },
-    'nasdaq': { data: idx.NASDAQ, fmt: v => '$' + v.toLocaleString('en', {maximumFractionDigits:0}) },
-    'dow':   { data: idx.DOW,    fmt: v => '$' + v.toLocaleString('en', {maximumFractionDigits:0}) },
-    'ftse':  { data: idx.FTSE,   fmt: v => v.toLocaleString('en', {maximumFractionDigits:0}) },
-    'gold':  { data: idx.GOLD,   fmt: v => '$' + v.toLocaleString('en', {minimumFractionDigits:0, maximumFractionDigits:0}) },
-    'oil':   { data: idx.OIL,    fmt: v => '$' + v.toFixed(2) },
-    'vix':   { data: idx.VIX,    fmt: v => v.toFixed(2) },
-    'btc':   { data: idx.BTC,    fmt: v => '$' + Math.round(v).toLocaleString('en') }
+/* ── Sectors ── */
+function renderSectors() {
+  var el = document.getElementById('sector-grid');
+  if (!el) return;
+  el.innerHTML = SECTORS.map(function(s) {
+    var cls = s.chg >= 0 ? 'up' : 'dn';
+    var sign = s.chg >= 0 ? '+' : '';
+    return '<div class="st">' +
+      '<div class="st-em">' + s.emoji + '</div>' +
+      '<div class="st-nm">' + s.name + '</div>' +
+      '<div class="st-ch ' + cls + '">' + sign + s.chg.toFixed(1) + '%</div>' +
+      '</div>';
+  }).join('');
+}
+
+/* ── Top Picks (first 3 short-term buys) ── */
+function renderTopPicks() {
+  var el = document.getElementById('top-picks');
+  if (!el) return;
+  var top = APP.recs.short.slice(0, 3);
+  if (!top.length) { el.innerHTML = '<p style="color:var(--t3);padding:20px 0">No picks yet</p>'; return; }
+  el.innerHTML = top.map(function(r) { return buildStockCard(r, true); }).join('');
+}
+
+/* ── Event Alerts (first 4 news items) ── */
+function renderEventAlerts() {
+  var el = document.getElementById('event-alerts');
+  if (!el) return;
+  el.innerHTML = NEWS.slice(0, 4).map(buildNewsCard).join('');
+}
+
+/* ── AI Headline rotates ── */
+var HEADLINES = [
+  'Top AI pick: NVDA — Blackwell GPU ramp + sovereign AI demand = explosive upside.',
+  'Defence stocks at multi-year highs. NATO 3% GDP mandate = decade of contract wins for LMT, RTX, NOC.',
+  'Obesity drug revolution: LLY oral pill Phase 3 positive — game-changer for $150bn GLP-1 market.',
+  'WATCH: US-China tariff risk is real. Reduce AAPL, TSLA, BABA exposure until clarity emerges.',
+  'AI data centres need massive power. NEE perfectly positioned with renewable energy contracts signed with MSFT, GOOGL.',
+  'Goldman Sachs and JPMorgan benefit from high NII and recovering M&A market. Financials look attractive.'
+];
+var headlineIdx = 0;
+function updateAIHeadline() {
+  var el = document.getElementById('ai-headline');
+  if (!el) return;
+  el.textContent = HEADLINES[headlineIdx % HEADLINES.length];
+  headlineIdx++;
+  setTimeout(updateAIHeadline, 8000);
+}
+
+/* ── Market card live update ── */
+function updateMarketCards(data) {
+  var fmts = {
+    SP500:  function(p) { return p.toLocaleString('en', {maximumFractionDigits:0}); },
+    NASDAQ: function(p) { return p.toLocaleString('en', {maximumFractionDigits:0}); },
+    DOW:    function(p) { return p.toLocaleString('en', {maximumFractionDigits:0}); },
+    FTSE:   function(p) { return p.toLocaleString('en', {maximumFractionDigits:0}); },
+    GOLD:   function(p) { return '$' + p.toLocaleString('en', {maximumFractionDigits:0}); },
+    OIL:    function(p) { return '$' + p.toFixed(2); },
+    VIX:    function(p) { return p.toFixed(2); },
+    BTC:    function(p) { return '$' + Math.round(p).toLocaleString('en'); }
   };
-
-  Object.entries(map).forEach(([id, { data, fmt }]) => {
-    if (!data) return;
-    const valEl = document.getElementById(`${id}-val`);
-    const chgEl = document.getElementById(`${id}-chg`);
-    if (!valEl || !chgEl) return;
-
-    const isVix = id === 'vix';
-    valEl.textContent = fmt(data.price);
-    const pct = data.changePct || 0;
-    const upForVix = pct < 0; // VIX down = market up = good
-    const isUp = isVix ? (pct < 0) : (pct >= 0);
-    chgEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
-    chgEl.className = `mkt-chg ${pct === 0 ? 'neutral' : isUp ? 'up' : 'dn'}`;
+  Object.keys(data).forEach(function(key) {
+    try {
+      var d = data[key];
+      var valEl = document.getElementById('mkt-val-' + key);
+      var chgEl = document.getElementById('mkt-chg-' + key);
+      if (!valEl || !chgEl || !d || !d.price) return;
+      var fmt = fmts[key] || function(p) { return p.toFixed(2); };
+      valEl.textContent = fmt(d.price);
+      var pct = (d.chg || 0).toFixed(2);
+      var isUp = d.chg >= 0;
+      chgEl.textContent = (isUp ? '+' : '') + pct + '%';
+      chgEl.className = 'mkt-chg ' + (isUp ? 'up' : 'dn');
+    } catch(e) {}
   });
 }
 
-function renderTicker() {
-  const idx = APP.marketData.indices || {};
-  const items = [
-    { sym: 'S&P 500', d: idx.SP500 },
-    { sym: 'NASDAQ', d: idx.NASDAQ },
-    { sym: 'DOW', d: idx.DOW },
-    { sym: 'FTSE 100', d: idx.FTSE },
-    { sym: 'GOLD', d: idx.GOLD },
-    { sym: 'OIL', d: idx.OIL },
-    { sym: 'VIX', d: idx.VIX },
-    { sym: 'BTC', d: idx.BTC },
-    // Add top stocks
-    ...Object.entries(APP.priceData || {}).slice(0, 8).map(([sym, q]) => ({
-      sym, d: { price: q.price, changePct: q.changePct }
-    }))
-  ];
-
-  const content = items.filter(i => i.d && i.d.price).map(({ sym, d }) => {
-    const cls = d.changePct >= 0 ? 'tick-up' : 'tick-dn';
-    const arrow = d.changePct >= 0 ? '▲' : '▼';
-    return `<span class="tick"><span class="tick-sym">${sym}</span> ${d.price > 1000 ? Math.round(d.price).toLocaleString('en') : d.price.toFixed(2)} <span class="${cls}">${arrow}${Math.abs(d.changePct || 0).toFixed(2)}%</span></span>`;
-  }).join('');
-
-  const track = document.getElementById('ticker-track');
-  if (track && content) track.innerHTML = content + content; // double for seamless loop
+function updateTicker(data) {
+  var el = document.getElementById('ticker-inner');
+  if (!el) return;
+  var src = data || {};
+  var keys = ['SP500','NASDAQ','DOW','FTSE','GOLD','OIL','VIX','BTC'];
+  var names = { SP500:'S&P 500', NASDAQ:'NASDAQ', DOW:'DOW', FTSE:'FTSE 100', GOLD:'Gold', OIL:'Oil', VIX:'VIX', BTC:'Bitcoin' };
+  var ticks = keys.map(function(k) {
+    var d = src[k] || FALLBACK[k];
+    if (!d) return '';
+    var isUp = d.chg >= 0;
+    var sign = isUp ? '+' : '';
+    return '<span class="tick"><span class="tick-s">' + names[k] + '</span> ' +
+      (k === 'OIL' ? '$' + d.price.toFixed(2) :
+       k === 'VIX' ? d.price.toFixed(2) :
+       k === 'BTC' ? '$' + Math.round(d.price).toLocaleString('en') :
+       k === 'GOLD' ? '$' + Math.round(d.price).toLocaleString('en') :
+       d.price.toLocaleString('en', {maximumFractionDigits:0})) +
+      ' <span class="' + (isUp ? 'tick-u' : 'tick-d') + '">' +
+      (isUp ? '▲' : '▼') + sign + d.chg.toFixed(2) + '%</span></span>';
+  }).filter(Boolean).join('');
+  /* Double it for seamless loop */
+  el.innerHTML = ticks + ticks;
 }
 
-function renderSectors() {
-  const sectors = APP.marketData.sectors || [];
-  const grid = document.getElementById('sector-grid');
-  if (!grid) return;
-  grid.innerHTML = sectors.map(s => `
-    <div class="sector-tile">
-      <div class="sector-emoji">${s.emoji}</div>
-      <div class="sector-name">${s.name}</div>
-      <div class="sector-perf ${s.changePct >= 0 ? 'up' : 'dn'}">${s.changePct >= 0 ? '+' : ''}${s.changePct}%</div>
-    </div>`).join('');
+/* ── Gauge ── */
+function drawGauge(score) {
+  var canvas = document.getElementById('gauge-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var W = 180, H = 110;
+  ctx.clearRect(0, 0, W, H);
+  var cx = W / 2, cy = H - 10, R = 78;
+  /* track */
+  ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 0);
+  ctx.lineWidth = 13; ctx.strokeStyle = '#28283f'; ctx.lineCap = 'round'; ctx.stroke();
+  /* value arc */
+  var angle = Math.PI + (Math.PI * Math.min(100, Math.max(0, score)) / 100);
+  var g = ctx.createLinearGradient(cx - R, cy, cx + R, cy);
+  g.addColorStop(0, '#ff4455'); g.addColorStop(0.5, '#ffcc00'); g.addColorStop(1, '#00e676');
+  ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, angle);
+  ctx.lineWidth = 13; ctx.strokeStyle = g; ctx.lineCap = 'round'; ctx.stroke();
 }
 
-function renderSentiment() {
-  const s = APP.marketData.sentiment || { score: 50, label: 'Neutral' };
-  document.getElementById('gauge-num').textContent = s.score;
-  document.getElementById('gauge-lbl').textContent = s.label;
-
-  // Sentiment bars
-  const score = s.score;
-  const isGreed = score > 55;
-  const isFear = score < 45;
-
-  const momentum = isGreed ? Math.min(95, score + 10) : Math.max(15, score - 15);
-  const safehaven = isFear ? Math.min(90, 100 - score + 20) : Math.max(10, 100 - score - 10);
-  const volatility = isFear ? Math.min(85, 100 - score) : Math.max(15, 60 - score * 0.5);
-  const breadth = isGreed ? Math.min(90, score + 5) : Math.max(20, score - 5);
-
-  setBar('bar-momentum', momentum);
-  setBar('bar-safehaven', safehaven);
-  setBar('bar-volatility', volatility);
-  setBar('bar-breadth', breadth);
-
-  drawGauge(s.score);
+function updateGauge(score, label) {
+  try {
+    drawGauge(score);
+    var s = document.getElementById('gauge-score'); if (s) s.textContent = score;
+    var t = document.getElementById('gauge-text');  if (t) t.textContent = label;
+    /* sentiment bars */
+    var isGreed = score > 55, isFear = score < 45;
+    setBar('sbar-momentum',  isGreed ? Math.min(90, score + 10) : Math.max(15, score - 10));
+    setBar('sbar-safehaven', isFear  ? Math.min(85, 100 - score + 15) : Math.max(10, 100 - score - 10));
+    setBar('sbar-volatility',isFear  ? Math.min(85, 100 - score) : Math.max(15, 60 - score * 0.4));
+    setBar('sbar-breadth',   isGreed ? Math.min(88, score + 5)  : Math.max(20, score - 5));
+  } catch(e) {}
 }
-
 function setBar(id, pct) {
-  const el = document.getElementById(id);
+  var el = document.getElementById(id);
   if (el) el.style.width = pct + '%';
 }
 
-function drawGauge(score) {
-  const canvas = document.getElementById('gauge-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-
-  const cx = W / 2, cy = H - 10;
-  const R = Math.min(W, H * 2) / 2 - 10;
-
-  // Background arc
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, Math.PI, 0);
-  ctx.lineWidth = 14;
-  ctx.strokeStyle = '#2a2a42';
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Gradient arc
-  const angle = Math.PI + (Math.PI * score / 100);
-  const grad = ctx.createLinearGradient(cx - R, cy, cx + R, cy);
-  grad.addColorStop(0, '#ff4444');
-  grad.addColorStop(0.5, '#ffcc00');
-  grad.addColorStop(1, '#00e676');
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, Math.PI, angle);
-  ctx.lineWidth = 14;
-  ctx.strokeStyle = grad;
-  ctx.lineCap = 'round';
-  ctx.stroke();
+/* ── Update stock prices on rendered cards ── */
+function updateStockPrices(prices) {
+  Object.keys(prices).forEach(function(sym) {
+    try {
+      var p = prices[sym];
+      var stock = STOCKS[sym];
+      if (stock) {
+        stock.price = p.price;
+        stock.chg   = p.chg;
+      }
+      /* Update any currently visible price elements */
+      var prEl = document.querySelector('[data-price-sym="' + sym + '"]');
+      var chEl = document.querySelector('[data-chg-sym="' + sym + '"]');
+      if (prEl && p.price) prEl.textContent = '$' + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+      if (chEl) {
+        chEl.textContent = (p.chg >= 0 ? '+' : '') + p.chg.toFixed(2) + '%';
+        chEl.className = 'sc-chg ' + (p.chg >= 0 ? 'up' : 'dn');
+      }
+    } catch(e) {}
+  });
 }
 
-function renderTopPicks() {
-  const container = document.getElementById('top-picks-container');
-  if (!container) return;
-  const top = [...(APP.recommendations.short || [])].slice(0, 3);
-  if (top.length === 0) {
-    container.innerHTML = '<div class="skeleton"></div>';
+/* ════════════════════════════════════════
+   RENDER PICKS
+════════════════════════════════════════ */
+function renderPicks() {
+  renderPickList('list-short', APP.recs.short);
+  renderPickList('list-long',  APP.recs.long);
+  renderPickList('list-avoid', APP.recs.avoid);
+}
+function renderPickList(id, list) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (!list || !list.length) {
+    el.innerHTML = '<p style="color:var(--t3);text-align:center;padding:30px 0">None right now</p>';
     return;
   }
-  container.innerHTML = top.map(r => buildStockCard(r, 'compact')).join('');
+  el.innerHTML = list.map(function(r) { return buildStockCard(r, false); }).join('');
 }
 
-function renderEventAlerts() {
-  const container = document.getElementById('event-alerts-container');
-  if (!container) return;
-  const news = APP.newsData.slice(0, 4);
-  if (news.length === 0) {
-    container.innerHTML = '<div class="skeleton"></div>';
-    return;
+/* ── Build one stock card ── */
+function buildStockCard(r, compact) {
+  var sym    = r.sym;
+  var price  = r.price || 0;
+  var chg    = r.chg || 0;
+  var act    = (r.action || 'HOLD').toLowerCase();
+  var riskW  = r.risk === 'Low' ? '25' : r.risk === 'High' ? '85' : '55';
+  var riskCls= (r.risk || 'Medium').toLowerCase();
+  var isAvoid= (act === 'avoid');
+  var prStr  = price ? '$' + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+  var chStr  = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+  var showT212 = APP.settings.t212 !== false;
+
+  var actIcon = { buy:'fa-arrow-up', hold:'fa-minus', watch:'fa-eye', avoid:'fa-ban' };
+  var actLabel = { buy:'BUY', hold:'HOLD', watch:'WATCH', avoid:'AVOID / SELL' };
+
+  var thesis = compact
+    ? (r.thesis_short || '').split('.')[0] + '.'
+    : isAvoid ? r.thesis_short : r.thesis_short;
+
+  var catalysts = '';
+  if (!compact && !isAvoid && r.catalysts && r.catalysts.length) {
+    catalysts = '<div style="margin-top:9px;font-size:11px">' +
+      '<strong style="color:var(--green)">Key Catalysts: </strong>' +
+      r.catalysts.slice(0, 2).join(' • ') + '</div>';
   }
-  container.innerHTML = news.map(n => buildNewsCard(ANALYSIS.categoriseNews(n))).join('');
+  var risks = '';
+  if (!compact && r.risks && r.risks.length) {
+    risks = '<div style="margin-top:4px;font-size:11px">' +
+      '<strong style="color:var(--red)">Watch Out: </strong>' +
+      r.risks.slice(0, 2).join(' • ') + '</div>';
+  }
+  var t212 = '';
+  if (showT212) {
+    t212 = '<a class="t212-btn" href="https://www.trading212.com/search?query=' + sym + '" target="_blank" rel="noopener">' +
+      '<i class="fas fa-external-link-alt"></i> Open in Trading 212</a>';
+  }
+  var meta = '';
+  if (!compact) {
+    meta = '<div class="sc-meta">' +
+      '<div class="sc-m"><span class="sc-ml">12M Target</span><span class="sc-mv" style="color:var(--green)">' + (r.target12m || '—') + '</span></div>' +
+      '<div class="sc-m"><span class="sc-ml">Sector</span><span class="sc-mv">' + (r.sector || '—') + '</span></div>' +
+      '<div class="sc-m"><span class="sc-ml">P/E</span><span class="sc-mv">' + (r.pe || '—') + '</span></div>' +
+      '<div class="sc-m"><span class="sc-ml">Growth</span><span class="sc-mv">' + (r.growth || '—') + '</span></div>' +
+      '</div>';
+  }
+  var conf = isAvoid ? '' : (
+    '<div class="conf-row">' +
+    '<div class="conf-lbl"><span>AI Confidence</span><span>' + r.score + '%</span></div>' +
+    '<div class="conf-bar"><div class="conf-fill" style="width:' + r.score + '%"></div></div>' +
+    '</div>'
+  );
+  var riskBar =
+    '<div class="risk-row">' +
+    '<span class="risk-lbl">Risk:</span>' +
+    '<div class="risk-bar"><div class="risk-fill ' + riskCls + '" style="width:' + riskW + '%"></div></div>' +
+    '<span class="risk-val" style="color:var(--' + (riskCls === 'low' ? 'green' : riskCls === 'high' ? 'red' : 'yellow') + ')">' + (r.risk || 'Medium') + '</span>' +
+    '</div>';
+
+  return '<div class="sc ' + act + '" onclick="openStockDetail(\'' + sym + '\')">' +
+    '<div class="sc-top">' +
+      '<div class="sc-left">' +
+        '<div class="sc-ico">' + sym.slice(0, 3) + '</div>' +
+        '<div><div class="sc-sym">' + sym + '</div><div class="sc-name">' + r.name + '</div></div>' +
+      '</div>' +
+      '<div class="sc-right">' +
+        '<div class="sc-price" data-price-sym="' + sym + '">' + prStr + '</div>' +
+        '<div class="sc-chg ' + (chg >= 0 ? 'up' : 'dn') + '" data-chg-sym="' + sym + '">' + chStr + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<span class="pill ' + act + '"><i class="fas ' + (actIcon[act] || 'fa-minus') + '"></i> ' + (actLabel[act] || act.toUpperCase()) + '</span>' +
+    (thesis ? '<div class="sc-reason">' + thesis + '</div>' : '') +
+    meta + catalysts + risks + conf + riskBar + t212 +
+    '</div>';
 }
 
-function updateAIBanner() {
-  const headline = ANALYSIS.getAIHeadline(APP.recommendations, APP.marketData);
-  const el = document.getElementById('ai-subtitle');
-  if (el) el.textContent = headline;
-}
-
-/* ═══════════════════════════════════════
-   RENDER RECOMMENDATIONS
-═══════════════════════════════════════ */
-function renderRecommendations() {
-  const { short = [], long = [], avoid = [] } = APP.recommendations;
-
-  document.getElementById('short-term-list').innerHTML = short.length
-    ? short.map(r => buildStockCard(r, 'full')).join('')
-    : '<p style="color:var(--text3);text-align:center;padding:30px">Analysing market data...</p>';
-
-  document.getElementById('long-term-list').innerHTML = long.length
-    ? long.map(r => buildStockCard(r, 'full')).join('')
-    : '<p style="color:var(--text3);text-align:center;padding:30px">Analysing fundamentals...</p>';
-
-  document.getElementById('avoid-list').innerHTML = avoid.length
-    ? avoid.map(r => buildStockCard(r, 'avoid')).join('')
-    : '<p style="color:var(--text3);text-align:center;padding:30px">No stocks to avoid right now.</p>';
-}
-
-/* ─── BUILD STOCK CARD ─── */
-function buildStockCard(r, mode) {
-  const priceStr = r.price ? '$' + Number(r.price).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
-  const chgStr = r.changePct ? `${r.changePct >= 0 ? '+' : ''}${r.changePct.toFixed(2)}%` : '--';
-  const chgCls = (r.changePct || 0) >= 0 ? 'up' : 'dn';
-  const action = r.action || 'watch';
-  const riskCls = r.riskLevel || 'medium';
-
-  const actionIcons = { buy: 'fa-arrow-up', sell: 'fa-arrow-down', hold: 'fa-minus', watch: 'fa-eye', avoid: 'fa-ban' };
-  const actionLabels = { buy: 'BUY', sell: 'SELL', hold: 'HOLD', watch: 'WATCH', avoid: 'AVOID / SELL' };
-
-  const isAvoid = mode === 'avoid' || action === 'avoid' || action === 'sell';
-  const thesis = isAvoid ? (r.thesis?.risk || '') : (mode === 'full' ? r.thesis?.short : r.thesis?.short?.split('.')[0]);
-
-  const showT212 = APP.settings.showT212 !== false;
-  const t212Link = showT212 && r.t212 ? `<a class="t212-link" href="https://www.trading212.com/search?query=${r.symbol}" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Open in Trading 212</a>` : '';
-
-  const catalysts = mode === 'full' && !isAvoid && r.catalysts?.length
-    ? `<div style="margin-top:10px;font-size:11px;color:var(--text2)"><strong style="color:var(--green)">Key Catalysts:</strong> ${r.catalysts.slice(0, 2).join(' • ')}</div>` : '';
-
-  const risks = mode === 'full' && r.risks?.length
-    ? `<div style="margin-top:4px;font-size:11px;color:var(--text2)"><strong style="color:var(--red)">Risks:</strong> ${r.risks.slice(0, 2).join(' • ')}</div>` : '';
-
-  const targets = !isAvoid && r.target12m
-    ? `<div class="sc-meta">
-        <div class="sc-metric"><span class="sc-metric-label">12M Target</span><span class="sc-metric-val" style="color:var(--green)">${r.target12m}</span></div>
-        <div class="sc-metric"><span class="sc-metric-label">Sector</span><span class="sc-metric-val">${r.sector}</span></div>
-        <div class="sc-metric"><span class="sc-metric-label">P/E</span><span class="sc-metric-val">${r.pe || '--'}</span></div>
-        <div class="sc-metric"><span class="sc-metric-label">Growth</span><span class="sc-metric-val">${r.growth || '--'}</span></div>
-      </div>` : '';
-
-  const confidence = !isAvoid
-    ? `<div class="confidence-row">
-        <div class="confidence-labels"><span>AI Confidence</span><span>${r.confidence}%</span></div>
-        <div class="confidence-bar"><div class="confidence-fill" style="width:${r.confidence}%"></div></div>
-      </div>` : '';
-
-  const riskBar = `<div class="risk-row">
-    <span class="risk-lbl">Risk:</span>
-    <div class="risk-bar"><div class="risk-bar-fill ${riskCls}" style="width:${r.riskWidth}"></div></div>
-    <span class="risk-val" style="color:${riskCls === 'low' ? 'var(--green)' : riskCls === 'high' ? 'var(--red)' : 'var(--yellow)'}">${riskCls.charAt(0).toUpperCase() + riskCls.slice(1)}</span>
-  </div>`;
-
-  return `
-    <div class="stock-card ${action}" onclick="openStockDetail('${r.symbol}')">
-      <div class="sc-top">
-        <div class="sc-left">
-          <div class="sc-icon">${r.symbol.slice(0, 3)}</div>
-          <div>
-            <div class="sc-sym">${r.symbol}</div>
-            <div class="sc-name">${r.name}</div>
-          </div>
-        </div>
-        <div class="sc-right">
-          <div class="sc-price">${priceStr}</div>
-          <div class="sc-chg ${chgCls}">${chgStr}</div>
-        </div>
-      </div>
-      <div class="action-pill ${action}"><i class="fas ${actionIcons[action]}"></i> ${actionLabels[action]}</div>
-      ${thesis ? `<div class="sc-reason">${thesis}</div>` : ''}
-      ${targets}
-      ${catalysts}
-      ${risks}
-      ${confidence}
-      ${riskBar}
-      ${t212Link}
-    </div>`;
-}
-
-/* ═══════════════════════════════════════
+/* ════════════════════════════════════════
    RENDER NEWS
-═══════════════════════════════════════ */
-function renderNews() {
-  const container = document.getElementById('news-list');
-  if (!container) return;
-  const filtered = APP.newsFilter === 'all'
-    ? APP.newsData
-    : APP.newsData.filter(n => ANALYSIS.categoriseNews(n).category === APP.newsFilter);
+════════════════════════════════════════ */
+function renderNews(filter) {
+  filter = filter || APP.newsFilter;
+  APP.newsFilter = filter;
+  var el = document.getElementById('news-list');
+  if (!el) return;
+  var filtered = NEWS.filter(function(n) {
+    return filter === 'all' || n.category === filter;
+  });
+  if (!filtered.length) {
+    el.innerHTML = '<p style="color:var(--t3);text-align:center;padding:30px 0">No news in this category right now.</p>';
+    return;
+  }
+  el.innerHTML = filtered.map(buildNewsCard).join('');
+}
 
-  container.innerHTML = filtered.length
-    ? filtered.map(n => buildNewsCard(ANALYSIS.categoriseNews(n))).join('')
-    : '<p style="color:var(--text3);text-align:center;padding:30px">No news in this category right now.</p>';
+function filterNews(btn) {
+  document.querySelectorAll('#news-filters .chip').forEach(function(b) { b.classList.remove('on'); });
+  btn.classList.add('on');
+  renderNews(btn.dataset.filter);
 }
 
 function buildNewsCard(n) {
-  const timeAgo = getTimeAgo(n.time);
-  const hasImpact = n.direction && n.direction !== 'neutral' && n.impactDetail;
-  const impactCls = n.direction === 'bull' ? 'bull' : n.direction === 'bear' ? 'bear' : 'neutral';
-  const impactIcon = n.direction === 'bull' ? '▲' : n.direction === 'bear' ? '▼' : '—';
-
-  const stocks = (n.stocks || n.affectedStocks || []).slice(0, 5);
-  const stockTags = stocks.length
-    ? `<div class="nc-stocks">${stocks.map(s => `<span class="nc-stock">${s}</span>`).join('')}</div>` : '';
-
-  const link = n.url ? `onclick="window.open('${n.url}', '_blank')"` : '';
-
-  return `
-    <div class="news-card" ${link}>
-      <div class="nc-top">
-        <span class="nc-cat ${n.category}">${n.category}</span>
-        ${hasImpact ? `<span class="nc-impact-badge ${impactCls}">${impactIcon} ${n.direction === 'bull' ? 'Bullish' : 'Bearish'}</span>` : ''}
-        <span class="nc-time">${timeAgo}</span>
-      </div>
-      <div class="nc-title">${n.title}</div>
-      ${n.summary ? `<div class="nc-summary">${n.summary}</div>` : ''}
-      ${hasImpact ? `<div class="nc-impact ${impactCls}"><i class="fas ${impactCls === 'bull' ? 'fa-chart-line' : 'fa-chart-line-down'} mr-2"></i> <strong>Market Impact:</strong> ${n.impactDetail}</div>` : ''}
-      ${stockTags}
-    </div>`;
+  var dir = n.direction || 'neutral';
+  var dirLabel = dir === 'bull' ? 'Bullish' : dir === 'bear' ? 'Bearish' : 'Neutral';
+  var dirIcon  = dir === 'bull' ? '▲' : dir === 'bear' ? '▼' : '—';
+  var age = timeAgo(n.age_h);
+  var stocks = (n.stocks || []).map(function(s) {
+    return '<span class="nc-stock">' + s + '</span>';
+  }).join('');
+  return '<div class="nc" ' + (n.url ? 'onclick="window.open(\'' + n.url + '\',\'_blank\')"' : '') + '>' +
+    '<div class="nc-top">' +
+      '<span class="nc-cat ' + n.category + '">' + n.category + '</span>' +
+      '<span class="nc-imp ' + dir + '">' + dirIcon + ' ' + dirLabel + '</span>' +
+      '<span class="nc-age">' + age + '</span>' +
+    '</div>' +
+    '<div class="nc-title">' + n.title + '</div>' +
+    (n.summary ? '<div class="nc-summary">' + n.summary + '</div>' : '') +
+    (n.impact ? '<div class="nc-impact ' + dir + '"><strong>Market Impact:</strong> ' + n.impact + '</div>' : '') +
+    (stocks ? '<div class="nc-stocks">' + stocks + '</div>' : '') +
+    '</div>';
 }
 
-function filterNews(el) {
-  document.querySelectorAll('#news-filters .chip').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  APP.newsFilter = el.dataset.filter;
-  renderNews();
+function timeAgo(hours) {
+  if (!hours && hours !== 0) return '';
+  if (hours < 1) return 'Just now';
+  if (hours < 24) return hours + 'h ago';
+  return Math.floor(hours / 24) + 'd ago';
 }
 
-/* ═══════════════════════════════════════
+/* ════════════════════════════════════════
+   RENDER WATCHLIST
+════════════════════════════════════════ */
+function renderWatchlist(prices) {
+  var items = document.getElementById('wl-items');
+  var empty = document.getElementById('wl-empty');
+  if (!items) return;
+  if (!APP.watchlist.length) {
+    if (empty) empty.style.display = 'block';
+    items.querySelectorAll('.wl-item').forEach(function(e) { e.remove(); });
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  items.querySelectorAll('.wl-item').forEach(function(e) { e.remove(); });
+  APP.watchlist.forEach(function(sym) {
+    try {
+      var live  = (prices && prices[sym]) || {};
+      var known = STOCKS[sym] || {};
+      var price = live.price || known.price || null;
+      var chg   = live.chg   !== undefined ? live.chg : (known.chg || 0);
+      var prStr = price ? '$' + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+      var chStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      var div = document.createElement('div');
+      div.className = 'wl-item';
+      div.onclick = function() { openStockDetail(sym); };
+      div.innerHTML =
+        '<div class="wl-sym">' + sym + '</div>' +
+        '<div class="wl-name">' + (known.name || sym) + '</div>' +
+        '<div style="text-align:right">' +
+          '<div class="wl-pr">' + prStr + '</div>' +
+          '<div class="wl-ch ' + (chg >= 0 ? 'up' : 'dn') + '">' + chStr + '</div>' +
+        '</div>' +
+        '<button class="wl-rm" onclick="event.stopPropagation();removeWatchlist(\'' + sym + '\')"><i class="fas fa-times"></i></button>';
+      items.appendChild(div);
+    } catch(e) {}
+  });
+}
+
+/* ════════════════════════════════════════
    RENDER ALERTS
-═══════════════════════════════════════ */
+════════════════════════════════════════ */
+var ALERTS = [
+  { type:'ai',   icon:'fa-robot',             title:'AI Pick: NVDA — Strong BUY',                   desc:'Blackwell GPU ramp ahead of schedule. Every cloud provider buying aggressively. Confidence: 91%.', when:'5m ago' },
+  { type:'buy',  icon:'fa-arrow-up',           title:'Defence Sector: Multi-Year Tailwind',           desc:'NATO 3% GDP commitment = record order books for LMT, RTX, NOC. Consider adding on any dip.',     when:'1h ago' },
+  { type:'warn', icon:'fa-exclamation-triangle',title:'WARNING: China Tariff Risk — Review Holdings', desc:'New tariffs proposed on Chinese tech imports. Check AAPL, TSLA, BABA exposure.',                   when:'3h ago' },
+  { type:'buy',  icon:'fa-seedling',           title:'LLY Oral GLP-1: Phase 3 Positive',             desc:'Oral obesity drug shows 22% weight loss. Game-changer for $150bn market. LLY remains top long-term hold.', when:'5h ago' },
+  { type:'news', icon:'fa-newspaper',          title:'Oil Sliding — Airlines Benefit',                desc:'OPEC+ supply increase fears. XOM under pressure. DAL, AAL, FDX benefit from lower fuel costs.',   when:'8h ago' },
+  { type:'news', icon:'fa-globe',              title:'Market Status: ' + getMarketStatusText(),       desc:'Check the Markets page for live prices.',                                                           when:'Now' }
+];
+
+function getMarketStatusText() {
+  var now = new Date();
+  var day = now.getUTCDay();
+  var h   = now.getUTCHours();
+  var m   = now.getUTCMinutes();
+  var tot = h * 60 + m;
+  if (day === 0 || day === 6) return 'Weekend — markets closed';
+  if (tot >= 840 && tot < 1260) return 'US markets are OPEN';
+  if (tot >= 720 && tot < 840)  return 'Pre-market trading';
+  if (tot >= 1260 && tot < 1380) return 'After-hours trading';
+  return 'US markets closed';
+}
+
 function renderAlerts() {
-  APP.alerts = ANALYSIS.generateAlerts(APP.recommendations, APP.marketData);
-  const container = document.getElementById('alerts-feed');
-  if (!container) return;
-
-  container.innerHTML = APP.alerts.map(a => `
-    <div class="alert-item">
-      <div class="alert-ico ${a.cls}"><i class="fas ${a.icon}"></i></div>
-      <div class="alert-body">
-        <div class="alert-title">${a.title}</div>
-        <div class="alert-desc">${a.desc}</div>
-        <div class="alert-when">${getTimeAgo(a.time)}</div>
-      </div>
-    </div>`).join('');
-
-  // Badge count
-  const badge = document.getElementById('alert-count');
-  const count = APP.alerts.length;
+  var el = document.getElementById('alerts-list');
+  if (!el) return;
+  el.innerHTML = ALERTS.map(function(a) {
+    return '<div class="alert-item">' +
+      '<div class="al-ico ' + a.type + '"><i class="fas ' + a.icon + '"></i></div>' +
+      '<div class="al-body">' +
+        '<div class="al-title">' + a.title + '</div>' +
+        '<div class="al-desc">' + a.desc + '</div>' +
+        '<div class="al-when">' + a.when + '</div>' +
+      '</div>' +
+      '</div>';
+  }).join('');
+  /* Badge */
+  var badge = document.getElementById('alerts-badge');
   if (badge) {
-    badge.textContent = count;
-    badge.style.display = count > 0 ? 'flex' : 'none';
+    badge.textContent = ALERTS.length;
+    badge.style.display = ALERTS.length ? 'flex' : 'none';
   }
 }
 
-/* ═══════════════════════════════════════
+/* ════════════════════════════════════════
    STOCK DETAIL MODAL
-═══════════════════════════════════════ */
-function openStockDetail(symbol) {
-  const stock = ANALYSIS.stocks[symbol];
-  const priceInfo = APP.priceData[symbol] || {};
-  const price = priceInfo.price || ANALYSIS._estimatePrice(symbol);
-  const chgPct = priceInfo.changePct || 0;
-  const chgCls = chgPct >= 0 ? 'up' : 'dn';
-  const chgStr = `${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%`;
+════════════════════════════════════════ */
+function openStockDetail(sym) {
+  var s = STOCKS[sym];
+  if (!s) { showToast('Stock not in database', 'info'); return; }
+  var price = s.price || 0;
+  var chg   = s.chg || 0;
+  var showT212 = APP.settings.t212 !== false;
 
-  document.getElementById('stock-modal-title').textContent = symbol + ' — ' + (stock?.name || symbol);
+  document.getElementById('stock-modal-title').textContent = sym + ' — ' + s.name;
 
-  const showT212 = APP.settings.showT212 !== false;
-  const t212 = showT212 ? `<a class="t212-link" href="https://www.trading212.com/search?query=${symbol}" target="_blank" rel="noopener" style="margin-top:16px;display:inline-flex"><i class="fas fa-external-link-alt"></i> Trade on Trading 212</a>` : '';
+  var cats = (s.catalysts || []).map(function(c) { return '<li>✓ ' + c + '</li>'; }).join('');
+  var rsks = (s.risks || []).map(function(r) { return '<li>✗ ' + r + '</li>'; }).join('');
 
-  const catalysts = stock?.catalysts?.map(c => `<li style="margin-bottom:4px;color:var(--green)">✓ ${c}</li>`).join('') || '';
-  const risks = stock?.risks?.map(r => `<li style="margin-bottom:4px;color:var(--red)">✗ ${r}</li>`).join('') || '';
+  var html =
+    '<div class="sd-top">' +
+      '<div class="sd-ico">' + sym.slice(0, 3) + '</div>' +
+      '<div class="sd-info">' +
+        '<h3>' + sym + '</h3>' +
+        '<p>' + s.name + ' • ' + (s.sector || '') + ' • ' + (s.exchange || '') + '</p>' +
+      '</div>' +
+    '</div>' +
+    '<div class="sd-price-row">' +
+      '<div class="sd-price">' + (price ? '$' + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</div>' +
+      '<div class="sd-chg ' + (chg >= 0 ? 'up' : 'dn') + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% today</div>' +
+    '</div>' +
+    '<div class="sd-stats">' +
+      '<div class="sd-stat"><div class="sd-stat-l">12M Target</div><div class="sd-stat-v" style="color:var(--green)">' + (s.target12m || '—') + '</div></div>' +
+      '<div class="sd-stat"><div class="sd-stat-l">Long-Term</div><div class="sd-stat-v" style="color:var(--purple)">' + (s.targetLong || '—') + '</div></div>' +
+      '<div class="sd-stat"><div class="sd-stat-l">P/E Ratio</div><div class="sd-stat-v">' + (s.pe || '—') + '</div></div>' +
+      '<div class="sd-stat"><div class="sd-stat-l">Revenue Growth</div><div class="sd-stat-v">' + (s.growth || '—') + '</div></div>' +
+      '<div class="sd-stat"><div class="sd-stat-l">Risk</div><div class="sd-stat-v" style="color:var(--' + (s.risk === 'Low' ? 'green' : s.risk === 'High' ? 'red' : 'yellow') + ')">' + (s.risk || '—') + '</div></div>' +
+      '<div class="sd-stat"><div class="sd-stat-l">Action</div><div class="sd-stat-v">' + (s.action || '—') + '</div></div>' +
+    '</div>' +
+    (s.why_now ? '<div class="sd-box"><h4><i class="fas fa-bolt"></i> Why Now?</h4><p>' + s.why_now + '</p></div>' : '') +
+    (s.thesis_short ? '<div class="sd-box"><h4><i class="fas fa-bolt"></i> Short-Term Thesis</h4><p>' + s.thesis_short + '</p></div>' : '') +
+    (s.thesis_long ? '<div class="sd-box"><h4><i class="fas fa-seedling"></i> Long-Term Thesis</h4><p>' + s.thesis_long + '</p></div>' : '') +
+    (cats ? '<div class="sd-box"><h4><i class="fas fa-check-circle"></i> Key Catalysts</h4><ul style="list-style:none;padding:0">' + cats + '</ul></div>' : '') +
+    (rsks ? '<div class="sd-box"><h4 class="red"><i class="fas fa-exclamation-triangle"></i> Risks to Watch</h4><ul style="list-style:none;padding:0">' + rsks + '</ul></div>' : '') +
+    (showT212 ? '<a class="t212-btn" href="https://www.trading212.com/search?query=' + sym + '" target="_blank" rel="noopener" style="display:inline-flex;margin-top:4px"><i class="fas fa-external-link-alt"></i> Trade on Trading 212</a>' : '') +
+    '<button class="pri-btn" style="margin-top:12px" onclick="addWatchlistFrom(\'' + sym + '\')">' +
+    '<i class="fas fa-star"></i> Add to Watchlist</button>';
 
-  const body = `
-    <div class="stock-detail-header">
-      <div class="stock-detail-icon">${symbol.slice(0,3)}</div>
-      <div class="stock-detail-info">
-        <h3>${symbol}</h3>
-        <p>${stock?.name || symbol} • ${stock?.sector || ''} • ${stock?.exchange || ''}</p>
-      </div>
-    </div>
-    <div class="detail-price-row">
-      <div class="detail-price">$${Number(price).toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-      <div class="detail-chg ${chgCls}">${chgStr} today</div>
-    </div>
-    <div class="detail-stats">
-      <div class="detail-stat"><div class="detail-stat-label">12M Target</div><div class="detail-stat-val" style="color:var(--green)">${stock?.target12m || '--'}</div></div>
-      <div class="detail-stat"><div class="detail-stat-label">Long-Term</div><div class="detail-stat-val" style="color:var(--purple)">${stock?.targetLong || '--'}</div></div>
-      <div class="detail-stat"><div class="detail-stat-label">P/E Ratio</div><div class="detail-stat-val">${stock?.pe || '--'}</div></div>
-      <div class="detail-stat"><div class="detail-stat-label">Revenue Growth</div><div class="detail-stat-val">${stock?.growth || '--'}</div></div>
-      <div class="detail-stat"><div class="detail-stat-label">Risk Level</div><div class="detail-stat-val" style="color:${stock?.riskLevel==='low'?'var(--green)':stock?.riskLevel==='high'?'var(--red)':'var(--yellow)'}">${stock?.riskLevel || '--'}</div></div>
-      <div class="detail-stat"><div class="detail-stat-label">Exchange</div><div class="detail-stat-val">${stock?.exchange || '--'}</div></div>
-    </div>
-    ${stock?.thesis?.short ? `<div class="detail-analysis"><h4><i class="fas fa-bolt"></i> Short-Term Thesis</h4><p>${stock.thesis.short}</p></div>` : ''}
-    ${stock?.thesis?.long ? `<div class="detail-analysis"><h4><i class="fas fa-seedling"></i> Long-Term Thesis</h4><p>${stock.thesis.long}</p></div>` : ''}
-    ${stock?.thesis?.risk ? `<div class="detail-analysis" style="border-color:rgba(255,68,68,0.3)"><h4 style="color:var(--red)"><i class="fas fa-exclamation-triangle"></i> Key Risks</h4><p>${stock.thesis.risk}</p></div>` : ''}
-    ${catalysts ? `<div class="detail-analysis"><h4><i class="fas fa-check-circle"></i> Catalysts</h4><ul style="list-style:none;padding:0;font-size:12px">${catalysts}</ul></div>` : ''}
-    ${risks ? `<div class="detail-analysis" style="border-color:rgba(255,68,68,0.3)"><h4 style="color:var(--red)"><i class="fas fa-times-circle"></i> Watch Out For</h4><ul style="list-style:none;padding:0;font-size:12px">${risks}</ul></div>` : ''}
-    ${t212}
-    <button onclick="addToWatchlist(); document.getElementById('stock-search').value='${symbol}';" class="primary-btn" style="margin-top:12px">
-      <i class="fas fa-star"></i> Add to Watchlist
-    </button>`;
-
-  document.getElementById('stock-modal-body').innerHTML = body;
+  document.getElementById('stock-modal-inner').innerHTML = html;
   openModal('stock-modal');
 }
 
-/* ═══════════════════════════════════════
+function addWatchlistFrom(sym) {
+  if (APP.watchlist.indexOf(sym) === -1) {
+    APP.watchlist.push(sym);
+    saveWatchlist();
+    showToast('Added ' + sym + ' to watchlist', 'ok');
+  } else {
+    showToast(sym + ' already in watchlist', 'info');
+  }
+}
+
+/* ════════════════════════════════════════
    NAVIGATION
-═══════════════════════════════════════ */
-function navigateTo(page) {
-  // Hide all pages
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-
-  // Show target
-  const target = document.getElementById(`page-${page}`);
-  if (target) target.classList.add('active');
-
-  const navBtn = document.querySelector(`.nav-btn[data-page="${page}"]`);
-  if (navBtn) navBtn.classList.add('active');
-
-  APP.currentPage = page;
+════════════════════════════════════════ */
+function goPage(page) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nb').forEach(function(b) { b.classList.remove('on'); });
+  var pg = document.getElementById('page-' + page);
+  if (pg) pg.classList.add('active');
+  var btn = document.querySelector('.nb[data-page="' + page + '"]');
+  if (btn) btn.classList.add('on');
+  APP.page = page;
   window.scrollTo(0, 0);
-
-  // Load page data
   if (page === 'watchlist') renderWatchlist();
-  if (page === 'alerts') renderAlerts();
 }
 
-/* ─── TAB SWITCHING ─── */
-function switchTab(el) {
-  const tab = el.dataset.tab;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  el.classList.add('active');
-  const panel = document.getElementById(tab);
-  if (panel) panel.classList.add('active');
+function switchTab(btn) {
+  var tab = btn.dataset.tab;
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('on'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('on'); });
+  btn.classList.add('on');
+  var panel = document.getElementById('tab-' + tab);
+  if (panel) panel.classList.add('on');
 }
 
-/* ═══════════════════════════════════════
+/* ════════════════════════════════════════
    MODALS
-═══════════════════════════════════════ */
+════════════════════════════════════════ */
 function openModal(id) {
-  const m = document.getElementById(id);
+  var m = document.getElementById(id);
   if (m) m.classList.add('open');
 }
-
 function closeModal(id) {
-  const m = document.getElementById(id);
+  var m = document.getElementById(id);
   if (m) m.classList.remove('open');
 }
-
-// Close on backdrop click
-document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal')) {
+/* Close on backdrop tap */
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('modal')) {
     e.target.classList.remove('open');
   }
 });
 
-/* ═══════════════════════════════════════
-   ALERT BANNER
-═══════════════════════════════════════ */
-function showAlertBanner(msg) {
-  const banner = document.getElementById('alert-banner');
-  const text = document.getElementById('alert-text');
-  if (banner && text) {
-    text.textContent = msg;
-    banner.style.display = 'flex';
-  }
-}
-
-function dismissAlert() {
-  const banner = document.getElementById('alert-banner');
-  if (banner) banner.style.display = 'none';
-}
-
-/* ═══════════════════════════════════════
+/* ════════════════════════════════════════
    TOAST
-═══════════════════════════════════════ */
-function showToast(msg, type = '') {
-  const toast = document.getElementById('toast');
-  if (!toast) return;
-  toast.textContent = msg;
-  toast.className = `toast ${type} show`;
-  setTimeout(() => toast.classList.remove('show'), 3000);
+════════════════════════════════════════ */
+var toastTimer = null;
+function showToast(msg, type) {
+  try {
+    var el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'show' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { el.className = ''; }, 3000);
+  } catch(e) {}
 }
-
-/* ═══════════════════════════════════════
-   UTILITIES
-═══════════════════════════════════════ */
-function getTimeAgo(ts) {
-  if (!ts) return '';
-  const diff = Date.now() - new Date(ts).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return 'Just now';
-  if (min < 60) return `${min}m ago`;
-  const hrs = Math.floor(min / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function fmt(n, dp = 2) {
-  if (n === null || n === undefined || n === '--') return '--';
-  return Number(n).toLocaleString('en', { minimumFractionDigits: dp, maximumFractionDigits: dp });
-}
-
-// Update market status every minute
-setInterval(updateMarketStatus, 60000);
