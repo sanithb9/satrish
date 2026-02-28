@@ -34,11 +34,13 @@ document.addEventListener('DOMContentLoaded', function() {
   try { renderWatchlist(); } catch(e) { console.error('renderWatchlist', e); }
   try { renderPortfolio(); } catch(e) { console.error('renderPortfolio', e); }
   try { drawGauge(54); }     catch(e) {}
-  // Cascade engine on home page
+  // Init autocomplete components
   setTimeout(function() {
-    try { renderCascades(); } catch(e) {}
-    try { liveRefresh(); }    catch(e) {}
-  }, 100);
+    try { initPortfolioAutocomplete(); } catch(e) {}
+    try { initWatchlistAutocomplete(); } catch(e) {}
+    try { renderCascades(); }            catch(e) {}
+    try { liveRefresh(); }               catch(e) {}
+  }, 150);
   // Auto-refresh every 5 minutes
   APP.liveTimer = setInterval(function() {
     try { liveRefresh(); } catch(e) {}
@@ -459,9 +461,144 @@ function updateStockPrices(prices) {
 }
 
 /* ════════════════════════════════════════
+   IMMEDIATE BUY / SELL ENGINE
+   PhD-level urgency scoring based on
+   real-time cascade triggers + confidence
+════════════════════════════════════════ */
+function buildImmediatePicks() {
+  var immBuy  = [];
+  var immSell = [];
+
+  /* Stocks with NOW-urgency cascade exposure */
+  var nowCascadePositive = {};
+  var nowCascadeNegative = {};
+
+  if (typeof SECTOR_CASCADES !== 'undefined') {
+    SECTOR_CASCADES.forEach(function(cascade) {
+      if (cascade.urgency !== 'NOW') return;
+      cascade.effects.forEach(function(fx) {
+        (fx.stocks || []).forEach(function(sym) {
+          if (fx.direction === 'positive' && fx.magnitude === 'EXTREME') nowCascadePositive[sym] = cascade.trigger_event;
+          if (fx.direction === 'negative' && (fx.magnitude === 'EXTREME' || fx.magnitude === 'HIGH')) nowCascadeNegative[sym] = cascade.trigger_event;
+        });
+      });
+    });
+  }
+
+  var allRecs = APP.recs.short.concat(APP.recs.long).concat(APP.recs.avoid);
+  var seen = {};
+
+  allRecs.forEach(function(r) {
+    if (seen[r.sym]) return;
+    seen[r.sym] = true;
+
+    var urgencyBuy  = 0;
+    var urgencySell = 0;
+    var reason      = '';
+    var sellReason  = '';
+
+    /* Immediate BUY criteria */
+    if (r.score >= 90 && r.action === 'BUY')                             { urgencyBuy += 40; reason = 'Highest AI conviction — score ' + r.score + '%.'; }
+    else if (r.score >= 85 && r.action === 'BUY')                        { urgencyBuy += 25; reason = 'Very high AI confidence — score ' + r.score + '%.'; }
+    if (nowCascadePositive[r.sym])                                        { urgencyBuy += 30; reason += ' NOW-level cascade trigger: ' + nowCascadePositive[r.sym] + '.'; }
+    if (r.why_now && r.why_now.indexOf('now') !== -1)                    { urgencyBuy += 10; }
+    if (r.risk === 'Low' && r.action === 'BUY' && r.score >= 80)         { urgencyBuy += 10; }
+
+    /* Immediate SELL / REDUCE criteria */
+    if (r.action === 'AVOID' && r.score <= 30)                           { urgencySell += 50; sellReason = 'AVOID-rated. Score ' + r.score + '% — fundamentals broken.'; }
+    else if (r.action === 'AVOID')                                        { urgencySell += 35; sellReason = 'AVOID-rated by AI.'; }
+    if (nowCascadeNegative[r.sym])                                        { urgencySell += 25; sellReason += ' NOW cascade headwind: ' + nowCascadeNegative[r.sym] + '.'; }
+    if (r.political && r.political.tariffs <= -3)                         { urgencySell += 15; sellReason += ' Extreme tariff / geopolitical exposure.'; }
+
+    var entry = Object.assign({}, r, {
+      urgencyBuy:  urgencyBuy,
+      urgencySell: urgencySell,
+      immediateReason: reason.trim(),
+      immediateSellReason: sellReason.trim()
+    });
+
+    if (urgencyBuy >= 35)                     immBuy.push(entry);
+    if (urgencySell >= 35 && !immBuy.find(function(x) { return x.sym === r.sym; })) immSell.push(entry);
+  });
+
+  immBuy.sort(function(a,b)  { return b.urgencyBuy  - a.urgencyBuy;  });
+  immSell.sort(function(a,b) { return b.urgencySell - a.urgencySell; });
+
+  return { buy: immBuy.slice(0,6), sell: immSell.slice(0,4) };
+}
+
+function renderImmediatePicks() {
+  var el = document.getElementById('list-immediate');
+  if (!el) return;
+
+  var picks = buildImmediatePicks();
+  var html  = '';
+
+  if (picks.buy.length) {
+    html += '<div class="imm-section-hdr buy"><i class="fas fa-bolt"></i> IMMEDIATE BUY — Act Now</div>';
+    html += '<div class="imm-context">These stocks have the highest combination of AI conviction + NOW-level macro catalysts. Time-sensitive opportunity windows.</div>';
+    html += picks.buy.map(function(r) { return buildImmediateCard(r, 'buy'); }).join('');
+  }
+
+  if (picks.sell.length) {
+    html += '<div class="imm-section-hdr sell" style="margin-top:18px"><i class="fas fa-arrow-down"></i> REDUCE / SELL — Review Positions</div>';
+    html += '<div class="imm-context">These stocks face NOW-level headwinds. If you hold them, review immediately. Risk of further downside is elevated.</div>';
+    html += picks.sell.map(function(r) { return buildImmediateCard(r, 'sell'); }).join('');
+  }
+
+  if (!html) {
+    html = '<div class="empty"><i class="fas fa-check-shield" style="font-size:44px;opacity:.2;margin-bottom:12px;display:block"></i>' +
+      '<h3>No Immediate Actions</h3><p>No stocks meet the criteria for urgent action right now. The AI is monitoring continuously.</p></div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function buildImmediateCard(r, type) {
+  var isBuy   = type === 'buy';
+  var reason  = isBuy ? r.immediateReason : r.immediateSellReason;
+  var urgency = isBuy ? r.urgencyBuy : r.urgencySell;
+  var urgLabel= urgency >= 60 ? 'CRITICAL' : urgency >= 45 ? 'URGENT' : 'HIGH';
+  var urgCls  = urgency >= 60 ? 'critical' : urgency >= 45 ? 'urgent' : 'high';
+  var price   = r.price ? '$' + r.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+  var chg     = (r.chg || 0);
+  var capBadge= r.cap ? '<span class="cap-badge ' + r.cap + '">' + r.cap + '</span>' : '';
+  var showT212 = APP.settings.t212 !== false;
+
+  return '<div class="imm-card ' + type + '" onclick="openStockDetail(\'' + r.sym + '\')">' +
+    '<div class="imm-top">' +
+      '<div class="sc-left">' +
+        '<div class="sc-ico ' + (isBuy ? '' : 'avoid') + '-ico">' + r.sym.slice(0,3) + '</div>' +
+        '<div>' +
+          '<div class="sc-sym">' + r.sym + capBadge + '</div>' +
+          '<div class="sc-name">' + r.name + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="imm-badges">' +
+        '<span class="imm-urgency ' + urgCls + '">' + urgLabel + '</span>' +
+        '<div style="text-align:right;margin-top:3px">' +
+          '<div class="sc-price">' + price + '</div>' +
+          '<div class="sc-chg ' + (chg>=0?'up':'dn') + '">' + (chg>=0?'+':'') + chg.toFixed(2) + '%</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="imm-reason ' + (isBuy?'buy':'sell') + '">' +
+      '<i class="fas ' + (isBuy?'fa-bolt':'fa-exclamation-triangle') + '"></i> ' + reason +
+    '</div>' +
+    (r.target12m ? '<div class="imm-target">Target: <strong style="color:var(--' + (isBuy?'green':'red') + ')">' + r.target12m + '</strong> &nbsp;·&nbsp; Risk: <strong>' + (r.risk||'—') + '</strong></div>' : '') +
+    '<div class="conf-row">' +
+      '<div class="conf-lbl"><span>AI Urgency Score</span><span>' + urgency + '/100</span></div>' +
+      '<div class="conf-bar"><div class="conf-fill" style="width:' + urgency + '%;background:var(--' + (isBuy?'green':'red') + ')"></div></div>' +
+    '</div>' +
+    (showT212 ? '<a class="t212-btn" href="https://www.trading212.com/search?query=' + r.sym + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i> ' + (isBuy?'Buy':'Sell') + ' on Trading 212</a>' : '') +
+  '</div>';
+}
+
+/* ════════════════════════════════════════
    RENDER PICKS
 ════════════════════════════════════════ */
 function renderPicks() {
+  renderImmediatePicks();
   renderPickList('list-short', APP.recs.short);
   renderPickList('list-long',  APP.recs.long);
   renderPickList('list-avoid', APP.recs.avoid);
@@ -736,6 +873,33 @@ function openStockDetail(sym) {
 
   document.getElementById('stock-modal-inner').innerHTML = html;
   openModal('stock-modal');
+}
+
+/* Called by watchlist autocomplete when user selects a stock from suggestions */
+function addWatchlistFromAC(sym, livePrice) {
+  try {
+    if (!sym) return;
+    var inp = document.getElementById('wl-search');
+    if (APP.watchlist.indexOf(sym) !== -1) {
+      showToast(sym + ' already in watchlist', 'info');
+      if (inp) inp.value = '';
+      return;
+    }
+    APP.watchlist.push(sym);
+    saveWatchlist();
+    if (inp) inp.value = '';
+    renderWatchlist();
+    showToast('Added ' + sym + (livePrice && livePrice.price ? ' @ $' + livePrice.price.toFixed(2) : ''), 'ok');
+    /* Re-render with live price if we already have it, otherwise fetch */
+    if (livePrice && livePrice.price) {
+      var priceMap = {}; priceMap[sym] = livePrice;
+      renderWatchlist(priceMap);
+    } else {
+      fetchStockPrices([sym]).then(function(prices) {
+        if (prices && prices[sym]) renderWatchlist(prices);
+      }).catch(function() {});
+    }
+  } catch(e) {}
 }
 
 function addWatchlistFrom(sym) {
