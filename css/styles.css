@@ -848,6 +848,99 @@ body{
   width:8px;height:8px;border-radius:50%;flex-shrink:0;
 }
 
+/* ════════════════════════════════════════
+   AUTOCOMPLETE DROPDOWN
+════════════════════════════════════════ */
+.ac-dropdown {
+  position:absolute;z-index:500;left:0;right:0;top:calc(100% + 3px);
+  background:var(--bg3);border:1px solid var(--border2);border-radius:var(--rs);
+  box-shadow:var(--shadow);max-height:280px;overflow-y:auto;display:none;
+}
+.ac-item {
+  display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;
+  border-bottom:1px solid var(--border);transition:background var(--tr);
+}
+.ac-item:last-child { border-bottom:none; }
+.ac-item:hover, .ac-item.ac-sel { background:var(--accent2); }
+.ac-left { display:flex;align-items:center;gap:6px;flex-shrink:0;min-width:72px; }
+.ac-sym {
+  font-weight:800;font-size:13px;color:var(--t1);letter-spacing:.3px;
+}
+.ac-exchange {
+  font-size:9px;color:var(--t3);background:var(--bg4);padding:1px 4px;
+  border-radius:3px;border:1px solid var(--border);
+}
+.ac-name {
+  font-size:11px;color:var(--t2);flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;
+}
+.ac-price {
+  font-size:11px;color:var(--t1);font-weight:700;white-space:nowrap;flex-shrink:0;
+  margin-left:auto;text-align:right;
+}
+.ac-up { color:var(--green);font-size:10px; }
+.ac-dn { color:var(--red);font-size:10px; }
+.ac-loading { color:var(--t3); }
+.ac-input-wrap { position:relative; }
+
+/* Live price display under portfolio symbol field */
+#ph-live-price {
+  display:none;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:11px;color:var(--t2);padding:7px 10px;margin-top:4px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);
+}
+#ph-live-price .up { color:var(--green); }
+#ph-live-price .dn { color:var(--red); }
+
+/* ════════════════════════════════════════
+   IMMEDIATE BUY/SELL SECTION
+════════════════════════════════════════ */
+.imm-section-hdr {
+  display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;
+  padding:9px 14px;border-radius:var(--rs);margin-bottom:10px;
+  letter-spacing:.3px;text-transform:uppercase;
+}
+.imm-section-hdr.buy  { background:var(--green2);color:var(--green);border:1px solid rgba(0,230,118,.3); }
+.imm-section-hdr.sell { background:var(--red2);color:var(--red);border:1px solid rgba(255,68,85,.3); }
+
+.imm-context {
+  font-size:11px;color:var(--t2);margin-bottom:10px;padding:0 2px;line-height:1.5;
+}
+
+.imm-card {
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px;margin-bottom:10px;cursor:pointer;
+  transition:border-color var(--tr),transform var(--tr);
+}
+.imm-card:hover { border-color:var(--border2);transform:translateY(-1px); }
+.imm-card.buy  { border-left:3px solid var(--green); }
+.imm-card.sell { border-left:3px solid var(--red); }
+
+.imm-top {
+  display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;
+}
+.imm-badges {
+  display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;
+}
+.imm-urgency {
+  font-size:9px;font-weight:800;padding:3px 7px;border-radius:4px;
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.imm-urgency.critical { background:rgba(255,68,85,.25);color:var(--red);border:1px solid rgba(255,68,85,.5); }
+.imm-urgency.urgent   { background:rgba(255,152,0,.25);color:var(--orange);border:1px solid rgba(255,152,0,.4); }
+.imm-urgency.high     { background:rgba(255,204,0,.2);color:var(--yellow);border:1px solid rgba(255,204,0,.35); }
+
+.imm-reason {
+  font-size:11px;line-height:1.5;padding:8px 10px;border-radius:var(--rs);
+  margin-bottom:8px;
+}
+.imm-reason.buy  { background:var(--green2);color:var(--green); }
+.imm-reason.sell { background:var(--red2);color:var(--red); }
+
+.imm-target {
+  font-size:11px;color:var(--t2);margin-bottom:8px;
+}
+
 /* ── RESPONSIVE DESKTOP ── */
 @media(min-width:900px){
   #nav{

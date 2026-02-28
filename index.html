@@ -161,11 +161,19 @@
       <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Mid Cap</div>
     </div>
     <div class="tab-bar">
-      <button class="tab-btn on" data-tab="short" onclick="switchTab(this)"><i class="fas fa-bolt"></i> Short Term</button>
+      <button class="tab-btn on" data-tab="immediate" onclick="switchTab(this)"><i class="fas fa-fire"></i> Immediate</button>
+      <button class="tab-btn" data-tab="short" onclick="switchTab(this)"><i class="fas fa-bolt"></i> Short Term</button>
       <button class="tab-btn" data-tab="long" onclick="switchTab(this)"><i class="fas fa-seedling"></i> Long Term</button>
       <button class="tab-btn" data-tab="avoid" onclick="switchTab(this)"><i class="fas fa-ban"></i> Avoid</button>
     </div>
-    <div id="tab-short" class="tab-panel on">
+    <div id="tab-immediate" class="tab-panel on">
+      <div class="tip" style="background:rgba(255,68,85,.08);border-color:rgba(255,68,85,.25)">
+        <i class="fas fa-fire" style="color:var(--red)"></i>
+        <strong style="color:var(--red)">Immediate Action Required:</strong> Stocks scoring highest on AI conviction + NOW-level macro cascade triggers. Act within days, not weeks.
+      </div>
+      <div id="list-immediate"></div>
+    </div>
+    <div id="tab-short" class="tab-panel">
       <div class="tip"><i class="fas fa-bolt"></i> <strong>Short-term (days–3 months):</strong> Stocks with near-term catalysts, strong momentum and positive event exposure. Includes small caps with near-term triggers.</div>
       <div id="list-short"></div>
     </div>
@@ -274,10 +282,18 @@
       <!-- Manual single entry -->
       <div class="port-entry-form">
         <h4><i class="fas fa-keyboard"></i> Add Single Holding</h4>
-        <div class="port-form-row">
-          <input id="ph-sym"    type="text"   placeholder="Symbol (e.g. NVDA)" autocapitalize="characters" autocomplete="off">
-          <input id="ph-shares" type="number" placeholder="Shares" min="0.001" step="0.001">
-          <input id="ph-cost"   type="number" placeholder="Avg Price $" min="0.01" step="0.01">
+        <div class="port-form-row" style="display:flex;gap:7px;margin-bottom:8px">
+          <div class="ac-input-wrap" style="flex:2;min-width:120px;position:relative">
+            <input id="ph-sym" type="text" placeholder="Type stock name or symbol"
+                   autocapitalize="characters" autocomplete="off" style="width:100%">
+            <div id="ph-sym-dropdown" class="ac-dropdown"></div>
+          </div>
+          <input id="ph-shares" type="number" placeholder="Shares" min="0.001" step="0.001" style="flex:1;min-width:70px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);color:var(--t1);padding:9px 10px;font-size:12px;outline:none">
+          <input id="ph-cost"   type="number" placeholder="Avg Price $" min="0.01" step="0.01" style="flex:1;min-width:80px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);color:var(--t1);padding:9px 10px;font-size:12px;outline:none">
+        </div>
+        <div id="ph-live-price"></div>
+        <div id="port-ocr-help" style="font-size:11px;color:var(--t3);margin:4px 0 8px">
+          <i class="fas fa-info-circle"></i> Select a stock from suggestions — price is fetched automatically. You only need to enter your avg purchase price.
         </div>
         <button class="pri-btn" onclick="addSingleHolding()">
           <i class="fas fa-plus"></i> Add to Portfolio
@@ -302,12 +318,13 @@
       <h1><i class="fas fa-star"></i> My Watchlist</h1>
       <p>Track stocks without adding them to your portfolio</p>
     </div>
-    <div class="search-row">
-      <div class="search-box">
+    <div class="search-row" style="position:relative">
+      <div class="search-box" style="position:relative;flex:1">
         <i class="fas fa-search"></i>
-        <input id="wl-search" type="text" placeholder="Add stock symbol (e.g. AAPL, TSLA)"
+        <input id="wl-search" type="text" placeholder="Type stock name or symbol to add..."
                autocapitalize="characters" autocomplete="off" autocorrect="off"
-               onkeydown="if(event.key==='Enter')addWatchlist()">
+               onkeydown="if(event.key==='Enter')addWatchlist()" style="padding-left:32px">
+        <div id="wl-dropdown" class="ac-dropdown"></div>
       </div>
       <button class="add-btn" onclick="addWatchlist()"><i class="fas fa-plus"></i></button>
     </div>
@@ -456,6 +473,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/api.js"></script>
+<script src="js/autocomplete.js"></script>
 <script src="js/portfolio.js"></script>
 <script src="js/app.js"></script>
 </body>
