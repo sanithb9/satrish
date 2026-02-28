@@ -319,6 +319,459 @@ const STOCKS = {
     risks: ['Brand damage from CEO political controversy', 'BYD EV competition in China, Europe, SE Asia', 'Auto margin compression continues', 'Overvalued at 55x PE for -1% revenue growth'],
     political: { tariffs: -1, nato: 0, ai_regulation: 0, green: +1.5 },
     t212_search: 'TSLA'
+  },
+
+  /* ── SMALL & MID CAP OPPORTUNITIES ── */
+  PLTR: {
+    name: 'Palantir Technologies', sector: 'Technology / AI Defence', exchange: 'NYSE',
+    price: 78, chg: +3.2, cap: 'mid',
+    action: 'BUY', risk: 'High', horizon: 'both',
+    confidence: 84,
+    target12m: '+55%', targetLong: '+250%', pe: 280, growth: '+36% YoY',
+    thesis_short: 'US Government AI contracts exploding. AIP (AI Platform) generating explosive enterprise revenue. Boot Camp model creating viral adoption with Fortune 500s.',
+    thesis_long: 'Palantir is becoming the operating system for Western government AI. Military AI, healthcare AI, and enterprise AI all converging on their Ontology platform. Early AWS parallel — dominance takes a decade.',
+    why_now: 'S&P 500 inclusion = forced passive buying. US defence AI spending routing contracts to PLTR. AIP enterprise growing 70%+ QoQ. NATO allies demanding battle management AI.',
+    catalysts: ['US Army AI battle management contracts', 'AIP enterprise seat expansion', 'NATO ally AI defence deployments', 'S&P 500 passive inflows continuing'],
+    risks: ['Extreme valuation (280x PE)', 'Government contract renewal risk', 'Competition from AWS, Azure AI services', 'Insider selling pressure'],
+    political: { tariffs: 0, nato: +3, ai_regulation: -0.5, green: 0 },
+    t212_search: 'PLTR'
+  },
+  CRWD: {
+    name: 'CrowdStrike Holdings', sector: 'Cybersecurity', exchange: 'NASDAQ',
+    price: 365, chg: +1.8, cap: 'mid',
+    action: 'BUY', risk: 'Medium', horizon: 'both',
+    confidence: 83,
+    target12m: '+35%', targetLong: '+150%', pe: 95, growth: '+32% YoY',
+    thesis_short: 'Cybersecurity is now critical national infrastructure. State-sponsored attacks from Russia, China, Iran making every government and enterprise upgrade security immediately.',
+    thesis_long: 'Every major geopolitical conflict expands the cyber threat landscape. CrowdStrike\'s Falcon platform is the gold standard. Cloud-native advantage over legacy players (Symantec, McAfee) is insurmountable.',
+    why_now: 'Recovered strongly from the July 2024 outage. Customer retention remained 98%+. Demand has re-accelerated. US government mandating zero-trust architecture = CRWD wins.',
+    catalysts: ['US government zero-trust mandate', 'Charlotte AI expansion across all modules', 'Crowdstrike Falcon Complete MDR growth', 'European cyber sovereignty spending'],
+    risks: ['Valuation (95x PE) after recovery rally', 'July 2024 outage legal liability ongoing', 'Microsoft Defender competition in enterprise'],
+    political: { tariffs: 0, nato: +2, ai_regulation: 0, green: 0 },
+    t212_search: 'CRWD'
+  },
+  ARM: {
+    name: 'ARM Holdings', sector: 'Semiconductors', exchange: 'NASDAQ',
+    price: 145, chg: +2.4, cap: 'mid',
+    action: 'BUY', risk: 'Medium', horizon: 'both',
+    confidence: 81,
+    target12m: '+40%', targetLong: '+180%', pe: 110, growth: '+25% YoY',
+    thesis_short: 'ARM architecture powers 99% of smartphones and is rapidly taking over AI edge computing, automotive chips, and data centre CPUs (Apple M-series, AWS Graviton, NVIDIA Grace).',
+    thesis_long: 'The world is moving away from x86 (Intel). ARM chips are more power-efficient — critical for AI inference at edge. Every AI device needs ARM. Royalty model scales massively.',
+    why_now: 'AI edge computing is the next battleground. NVIDIA designing next-gen server CPUs on ARM. Every major chip designer (Apple, Qualcomm, Amazon) designing on ARM architecture.',
+    catalysts: ['AI server CPU adoption (replacing Intel Xeon)', 'Automotive autonomous driving chip wins', 'Royalty rate increases on premium chips', 'India data sovereignty chip initiative'],
+    risks: ['RISC-V open-source architecture threatening royalty model long-term', 'SoftBank still owns 90% — supply overhang risk', 'Geopolitical risk: UK-China chip licensing restrictions'],
+    political: { tariffs: 0, nato: +1, ai_regulation: -0.5, green: 0 },
+    t212_search: 'ARM'
+  },
+  VST: {
+    name: 'Vistra Energy', sector: 'Energy / Nuclear', exchange: 'NYSE',
+    price: 165, chg: +2.1, cap: 'mid',
+    action: 'BUY', risk: 'Medium', horizon: 'both',
+    confidence: 87,
+    target12m: '+45%', targetLong: '+200%', pe: 22, growth: '+85% YoY',
+    thesis_short: 'The single best play on AI power demand. Vistra owns nuclear plants that produce 24/7 carbon-free electricity. Microsoft, Google and Amazon are signing direct power purchase agreements with nuclear operators.',
+    thesis_long: 'AI data centres need always-on, carbon-free power — nuclear is the only answer at scale. Vistra\'s existing nuclear fleet cannot be replicated. Power scarcity = pricing power for decades.',
+    why_now: 'Microsoft signed direct nuclear PPA (similar deals coming). PJM capacity prices tripling. Nuclear plant life extensions approved. Every AI hyperscaler is desperately seeking reliable power.',
+    catalysts: ['AI hyperscaler nuclear PPAs (MSFT-style deals)', 'PJM capacity market price surge', 'Nuclear plant life extensions (20 more years)', 'Data centre co-location at nuclear sites'],
+    risks: ['Nuclear regulation complexity', 'Power price normalisation if new supply enters', 'Single-region concentration risk (Texas, Illinois)'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: +3 },
+    t212_search: 'VST'
+  },
+  CEG: {
+    name: 'Constellation Energy', sector: 'Energy / Nuclear', exchange: 'NASDAQ',
+    price: 280, chg: +1.5, cap: 'mid',
+    action: 'BUY', risk: 'Medium', horizon: 'long',
+    confidence: 85,
+    target12m: '+35%', targetLong: '+130%', pe: 28, growth: '+60% YoY',
+    thesis_short: 'Largest US nuclear operator. Microsoft signed a 20-year PPA to restart Three Mile Island exclusively for data centre power. This is the template — every hyperscaler is now calling CEG.',
+    thesis_long: 'Nuclear is the only carbon-free baseload power that can satisfy AI\'s energy hunger. CEG\'s fleet of 22 reactors is impossible to replicate. Carbon-free electricity = premium pricing forever.',
+    why_now: 'Three Mile Island restart approved and operational. Amazon, Google both exploring nuclear PPAs. Federal government IRA credits for nuclear = $30/MWh subsidy floor.',
+    catalysts: ['Google and Amazon nuclear PPAs (following MSFT)', 'Three Mile Island restart generating revenue', 'Small Modular Reactor (SMR) development contracts', 'IRA nuclear credits ($30/MWh subsidy)'],
+    risks: ['Nuclear safety incidents (low probability, high impact)', 'New grid connections permitting delays', 'Interest rate sensitivity on capital projects'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: +3 },
+    t212_search: 'CEG'
+  },
+  MP: {
+    name: 'MP Materials (Rare Earth)', sector: 'Materials / Rare Earth', exchange: 'NYSE',
+    price: 18, chg: +1.9, cap: 'small',
+    action: 'BUY', risk: 'High', horizon: 'long',
+    confidence: 74,
+    target12m: '+60%', targetLong: '+300%', pe: 45, growth: '+15% YoY',
+    thesis_short: 'China controls 85% of global rare earth processing — a national security emergency. MP Materials owns the only major US rare earth mine (Mountain Pass, California). Every semiconductor, EV motor, and missile guidance system needs rare earths.',
+    thesis_long: 'The US-China decoupling will force Western nations to build domestic rare earth supply chains. MP is the only US solution at scale. Defence contracts + EV motor magnet demand = decade-long structural growth.',
+    why_now: 'US DoD has signed rare earth supply contracts with MP. GM using MP magnets in EV motors. China restricting rare earth exports is accelerating the crisis and MP\'s pricing power.',
+    catalysts: ['China rare earth export restrictions (ongoing crisis)', 'US DoD rare earth supply contracts', 'EV motor magnet manufacturing in Fort Worth Texas', 'EU Critical Raw Materials Act forcing European partnerships'],
+    risks: ['China flooding market with cheap rare earths to kill competition', 'Mine expansion permitting delays', 'Small market cap = high volatility', 'Commodity price cycles'],
+    political: { tariffs: +2, nato: +2, ai_regulation: 0, green: +2 },
+    t212_search: 'MP'
+  },
+  ALB: {
+    name: 'Albemarle Corp (Lithium)', sector: 'Materials / Lithium', exchange: 'NYSE',
+    price: 82, chg: -0.8, cap: 'mid',
+    action: 'WATCH', risk: 'High', horizon: 'long',
+    confidence: 62,
+    target12m: '+25%', targetLong: '+200%', pe: 35, growth: '-30% YoY',
+    thesis_short: 'Lithium price crashed 80% from peak — this is the time to start watching. EV adoption is still happening. Battery storage demand is growing. When lithium prices recover, ALB will explode.',
+    thesis_long: 'Every EV battery, grid storage system, and portable device needs lithium. ALB is the world\'s largest pure-play lithium producer. Wait for the supply glut to clear (6-18 months), then accumulate.',
+    why_now: 'WATCH, not buy yet. Lithium price near multi-year lows. Build position slowly. Wait for China EV demand recovery or supply curtailment signals before going big.',
+    catalysts: ['Lithium price recovery from current lows', 'China EV demand acceleration', 'US IRA battery manufacturing incentives', 'Grid storage demand surge from AI power needs'],
+    risks: ['Lithium price remaining depressed for 2+ years', 'New Chilean and Australian mine supply', 'Chinese lithium producers (Ganfeng) price war', 'EV adoption slower than expected'],
+    political: { tariffs: +1, nato: 0, ai_regulation: 0, green: +2 },
+    t212_search: 'ALB'
+  },
+  SMCI: {
+    name: 'Super Micro Computer', sector: 'Technology / AI Servers', exchange: 'NASDAQ',
+    price: 42, chg: +3.1, cap: 'small',
+    action: 'WATCH', risk: 'High', horizon: 'short',
+    confidence: 63,
+    target12m: '+80%', targetLong: 'Uncertain', pe: 14, growth: '+38% YoY',
+    thesis_short: 'Builds the AI server racks that house NVIDIA GPUs. Massive revenue growth but accounting controversy and delayed financial filings are a serious red flag. Very cheap on earnings if books are clean.',
+    thesis_long: 'If accounting issues are resolved, SMCI is genuinely cheap as the pick-and-shovel play for AI servers. Revenue growing 40%+. But trust must be re-established first.',
+    why_now: 'WATCH — wait for audited financials. If accounting clears and stock stays at these levels, aggressive accumulation is warranted.',
+    catalysts: ['Clean audited financial statements', 'AI server demand from hyperscalers', 'NVIDIA GPU integration partnerships', 'New liquid cooling server designs'],
+    risks: ['Accounting irregularities / fraud risk (serious)', 'NASDAQ delisting threat', 'Competition from Dell, HPE in AI servers', 'Supply chain constraints'],
+    political: { tariffs: -1, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'SMCI'
+  },
+  COIN: {
+    name: 'Coinbase Global', sector: 'Financials / Crypto', exchange: 'NASDAQ',
+    price: 285, chg: +4.2, cap: 'mid',
+    action: 'WATCH', risk: 'High', horizon: 'both',
+    confidence: 66,
+    target12m: '+50%', targetLong: '+200%', pe: 35, growth: '+75% YoY',
+    thesis_short: 'Trump administration is pro-crypto — SEC dropped most crypto enforcement cases. Bitcoin ETF approval drove $50bn+ inflows. COIN is the regulated on-ramp for institutional crypto.',
+    thesis_long: 'If crypto becomes mainstream financial infrastructure (stablecoin legislation, crypto in 401ks), COIN is the dominant licensed exchange. Revenue is highly correlated to crypto prices and volumes.',
+    why_now: 'Regulatory environment is the most favourable in COIN\'s history. Bitcoin all-time highs = record trading revenue. Stablecoin legislation would unlock massive new revenue streams.',
+    catalysts: ['US stablecoin legislation (COIN becomes settlement layer)', 'Bitcoin in pension fund portfolios', 'Crypto custody contracts with major institutions', 'Base L2 blockchain growing rapidly'],
+    risks: ['Crypto market crash reducing trading volumes', 'Foreign exchange regulatory uncertainty', 'Centralised exchanges vulnerable to hacks', 'Revenue highly cyclical'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'COIN'
+  },
+  PANW: {
+    name: 'Palo Alto Networks', sector: 'Cybersecurity', exchange: 'NASDAQ',
+    price: 195, chg: +1.2, cap: 'mid',
+    action: 'BUY', risk: 'Medium', horizon: 'long',
+    confidence: 80,
+    target12m: '+28%', targetLong: '+110%', pe: 55, growth: '+14% YoY',
+    thesis_short: 'Platformisation strategy is working — customers consolidating from 50+ security vendors to one PANW platform. Annual Recurring Revenue growing strongly, near-term revenue optics distorted by transition.',
+    thesis_long: 'Cybersecurity spending cannot be cut in a world of nation-state cyber warfare. PANW\'s integrated platform model wins against point-solution vendors. AI-powered threat detection is a genuine moat.',
+    why_now: 'Platformisation concerns are now well-priced. AI-powered XSIAM security operations centre is winning enterprise deals. Government and financial sector expanding deployments.',
+    catalysts: ['Platformisation revenue recognition clearing', 'XSIAM SOC platform winning large government deals', 'AI-powered threat detection superiority', 'European NATO cyber spending'],
+    risks: ['Revenue growth temporary slowdown during platform transition', 'CrowdStrike competition in endpoint security', 'High valuation during transition period'],
+    political: { tariffs: 0, nato: +2, ai_regulation: 0, green: 0 },
+    t212_search: 'PANW'
+  },
+  ASML: {
+    name: 'ASML Holding (ADR)', sector: 'Semiconductors', exchange: 'NASDAQ',
+    price: 680, chg: +0.9, cap: 'large',
+    action: 'BUY', risk: 'Low', horizon: 'long',
+    confidence: 88,
+    target12m: '+30%', targetLong: '+120%', pe: 32, growth: '+18% YoY',
+    thesis_short: 'ASML makes the EUV lithography machines needed to manufacture leading-edge chips. They have a complete monopoly — no competitor is even close. Every chip fab (TSMC, Samsung, Intel) must buy from ASML.',
+    thesis_long: 'Monopoly on the technology needed to print the world\'s most advanced chips. Cannot be replicated — took 30 years to develop. Every advanced chip fab on earth depends on ASML. Price increases are automatic.',
+    why_now: 'AI chip demand is forcing TSMC to build new fabs at record pace. Every new fab needs EUV machines. ASML\'s order book is multi-year backlogged. China export restrictions mean Western allies get priority.',
+    catalysts: ['TSMC fab expansion orders (Taiwan, Arizona, Japan)', 'Next-gen High-NA EUV machines at €350m each', 'Europe chip sovereignty (IMEC, STMicro) investments', 'Longer-term China demand when restrictions ease'],
+    risks: ['China export restrictions reducing addressable market by 15%', 'Geopolitical risk: Netherlands between US/China pressure', 'Chip cycle downturn reducing near-term orders'],
+    political: { tariffs: 0, nato: +1, ai_regulation: 0, green: 0 },
+    t212_search: 'ASML'
+  },
+  TSM: {
+    name: 'Taiwan Semiconductor (ADR)', sector: 'Semiconductors', exchange: 'NYSE',
+    price: 195, chg: +1.6, cap: 'large',
+    action: 'BUY', risk: 'High', horizon: 'long',
+    confidence: 78,
+    target12m: '+35%', targetLong: '+130%', pe: 25, growth: '+34% YoY',
+    thesis_short: 'Makes 90%+ of the world\'s most advanced chips. Every AI chip (NVIDIA, AMD, Apple M-series, Google TPU) is manufactured at TSMC. Revenue growing explosively on AI demand.',
+    thesis_long: 'Irreplaceable for at least 10 years. The geopolitical risk is real but overstated — Taiwan\'s chip fabs are too valuable for any rational actor to destroy. Diversifying into US/Japan to reduce risk.',
+    why_now: 'AI chip demand surge means TSMC fabs running at 100% utilisation. Arizona fab starting production. Price increases being pushed through for advanced nodes.',
+    catalysts: ['AI chip demand at N3/N2 nodes', 'Arizona fab (TSMC USA) production ramp', 'CoWoS packaging for AI GPU demand', 'Japan fab (Kumamoto) opening'],
+    risks: ['Taiwan geopolitical risk (China invasion scenario)', 'Customer concentration: APPLE = 25% of revenue', 'US tariffs on Taiwan chips in trade disputes', 'Arizona fab cost overruns'],
+    political: { tariffs: -1, nato: +1, ai_regulation: 0, green: 0 },
+    t212_search: 'TSM'
+  },
+  MELI: {
+    name: 'MercadoLibre', sector: 'Technology / E-Commerce', exchange: 'NASDAQ',
+    price: 2150, chg: +1.4, cap: 'large',
+    action: 'BUY', risk: 'Medium', horizon: 'long',
+    confidence: 81,
+    target12m: '+28%', targetLong: '+120%', pe: 60, growth: '+42% YoY',
+    thesis_short: 'Dominant e-commerce and fintech platform across Latin America (Brazil, Mexico, Argentina, Colombia). 220m+ users. MercadoPago fintech growing faster than the e-commerce business.',
+    thesis_long: 'LatAm is the fastest-growing digital economy in the world. MELI has the logistics, payments, and marketplace infrastructure to dominate for decades. MercadoPago is becoming the PayPal of Latin America.',
+    why_now: 'Brazil and Mexico digital economy boom. Credit portfolio growing 60%+. Ad revenue growing 90%+. Logistics network now a competitive moat.',
+    catalysts: ['MercadoPago fintech credit expansion', 'Brazil e-commerce penetration still only 15%', 'Ad revenue acceleration', 'Mexico market share gains vs Amazon'],
+    risks: ['Argentine economic instability', 'Currency devaluation risk (BRL, ARS)', 'Amazon entering LatAm aggressively', 'Political risk in key markets'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'MELI'
+  },
+  SHOP: {
+    name: 'Shopify Inc', sector: 'Technology / E-Commerce', exchange: 'NYSE',
+    price: 115, chg: +2.1, cap: 'mid',
+    action: 'BUY', risk: 'Medium', horizon: 'long',
+    confidence: 77,
+    target12m: '+35%', targetLong: '+150%', pe: 75, growth: '+25% YoY',
+    thesis_short: 'The operating system for online retail — over 2 million merchants globally. AI tools (Shopify Magic, Sidekick) are making merchants more profitable. Offline POS expansion.',
+    thesis_long: 'Every business eventually sells online. Shopify is the infrastructure layer. Payments (Shopify Payments), capital (Shopify Capital), logistics are expanding margins. AI commerce is the next frontier.',
+    why_now: 'Divested logistics (reducing losses). Back to profitable growth. AI tools for merchants are genuinely useful. B2B enterprise expansion underway.',
+    catalysts: ['Shopify Plus enterprise expansion', 'AI merchant tools adoption', 'B2B commerce market expansion', 'International market penetration'],
+    risks: ['Amazon, WooCommerce, BigCommerce competition', 'Merchant success directly tied to macro consumer spending', 'High PE during revenue growth slowdown'],
+    political: { tariffs: -1, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'SHOP'
+  },
+  RXRX: {
+    name: 'Recursion Pharmaceuticals', sector: 'Healthcare / AI Drug Discovery', exchange: 'NASDAQ',
+    price: 8, chg: +2.5, cap: 'small',
+    action: 'WATCH', risk: 'High', horizon: 'long',
+    confidence: 55,
+    target12m: '+80%', targetLong: '+500%', pe: null, growth: '+35% YoY',
+    thesis_short: 'AI-powered drug discovery company. Using machine learning to find drug candidates 10x faster than traditional pharma. NVIDIA and Bayer have invested/partnered.',
+    thesis_long: 'If AI drug discovery works at scale, this is the biggest disruption in pharmaceutical history. Multi-billion drug pipeline being generated at a fraction of traditional cost. Binary outcome: transformative or zero.',
+    why_now: 'WATCH — speculative, high risk. NVIDIA investment gives credibility. First AI-discovered compounds entering human trials. Roche/Bayer partnerships de-risk somewhat.',
+    catalysts: ['First AI-discovered drug entering Phase 2 trials', 'NVIDIA Quantum2 platform partnership expansion', 'Roche acquisition or licensing deal', 'Platform licensing to big pharma'],
+    risks: ['Clinical trial failures (most drug candidates fail)', 'Cash burn — will need to raise capital', 'Competition from Insilico, Schrödinger, BenevolentAI', 'Regulatory pathway for AI drugs uncertain'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'RXRX'
+  },
+  ENPH: {
+    name: 'Enphase Energy', sector: 'Clean Energy / Solar', exchange: 'NASDAQ',
+    price: 68, chg: -1.2, cap: 'mid',
+    action: 'WATCH', risk: 'High', horizon: 'long',
+    confidence: 58,
+    target12m: '+40%', targetLong: '+200%', pe: 22, growth: '-35% YoY',
+    thesis_short: 'Microinverter technology leader for solar panels. Revenue hit hard by high interest rates (slowing residential solar). When rates fall, ENPH will rocket. Currently deeply oversold.',
+    thesis_long: 'Energy transition is inevitable. Solar + home battery storage is the endpoint for millions of homes. ENPH microinverters are superior technology with proprietary software lock-in.',
+    why_now: 'WATCH — accumulate slowly at these levels. Rate cut cycle will dramatically accelerate residential solar adoption. ENPH at 22x earnings is cheap for quality.',
+    catalysts: ['Fed rate cuts restarting residential solar', 'IRA clean energy incentives extended', 'Battery storage (Encharge) adoption', 'European energy crisis driving residential solar demand'],
+    risks: ['Interest rates staying high for longer', 'Chinese solar inverter companies (Huawei) competing on price', 'US tariff changes affecting solar equipment imports', 'Inventory correction continuing'],
+    political: { tariffs: -0.5, nato: 0, ai_regulation: 0, green: +2 },
+    t212_search: 'ENPH'
+  },
+  AFRM: {
+    name: 'Affirm Holdings (BNPL)', sector: 'Financials / FinTech', exchange: 'NASDAQ',
+    price: 52, chg: +3.4, cap: 'small',
+    action: 'WATCH', risk: 'High', horizon: 'long',
+    confidence: 61,
+    target12m: '+55%', targetLong: '+250%', pe: 42, growth: '+46% YoY',
+    thesis_short: 'Buy-Now-Pay-Later dominant in US. Debit+ card reaching 1m+ users. Apple Pay Later discontinued = AFRM picked up that market. Amazon partnership drives volume.',
+    thesis_long: 'BNPL is replacing credit cards for younger consumers. AFRM\'s transparent (no hidden fees) model wins trust. Debit+ account is building sticky relationship. Profitable for first time.',
+    why_now: 'Apple Pay Later shut down = direct market share gift. First GAAP profitable quarter. Amazon partnership driving 20%+ GMV growth.',
+    catalysts: ['Apple Pay Later shutdown windfall', 'Debit+ card expansion to 5m users', 'Amazon partnership GMV growth', 'First sustained GAAP profitability'],
+    risks: ['Credit losses rising in consumer stress scenario', 'Competition from Klarna, Afterpay', 'High interest rates hurting BNPL unit economics', 'Regulatory scrutiny of BNPL industry'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'AFRM'
+  },
+  NU: {
+    name: 'Nu Holdings (Nubank)', sector: 'Financials / FinTech', exchange: 'NYSE',
+    price: 14, chg: +2.2, cap: 'mid',
+    action: 'BUY', risk: 'High', horizon: 'long',
+    confidence: 76,
+    target12m: '+45%', targetLong: '+250%', pe: 30, growth: '+58% YoY',
+    thesis_short: '100 million customers across Brazil, Mexico, Colombia — the fastest-growing digital bank in history. 50% of Brazilian adults now have a Nubank account. Expanding into insurance, investments, payroll.',
+    thesis_long: 'Latin America\'s 650 million people are underbanked. Nu is the default financial platform for an entire generation. Once you have someone\'s banking, you have their financial life — deposits, loans, insurance, investments.',
+    why_now: 'Profitable in every market. Mexico growing at 200%+ (still tiny). Warren Buffett (Berkshire) invested. Crossing 100 million customers = network effects compounding.',
+    catalysts: ['Mexico market expansion (200% YoY growth)', 'Nubank insurance and investment products', 'Colombia market scaling', 'Credit card lending expansion'],
+    risks: ['Brazilian real currency devaluation', 'Brazilian economic recession', 'Credit losses if Brazilian consumers stress', 'Regulatory changes in financial services'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'NU'
+  }
+};
+
+/* ──────────────────────────────────────────
+   SECTOR CASCADE ENGINE
+   PhD-level macro dependency mapping.
+   When one sector moves, these cascade.
+────────────────────────────────────────── */
+const SECTOR_CASCADES = [
+  {
+    id: 'ai_infra_power',
+    trigger_event: 'AI Infrastructure Boom',
+    trigger_sector: 'Technology / AI',
+    icon: '🤖',
+    description: 'Every $1bn of AI compute built requires massive electricity, cooling, rare earth minerals, and specialised servers. This cascade is already happening.',
+    urgency: 'NOW',
+    effects: [
+      { sector: 'Nuclear & Power', direction: 'positive', magnitude: 'EXTREME', stocks: ['VST', 'CEG', 'NEE'],
+        reason: 'AI data centres consume 10x more power than traditional infrastructure. A single ChatGPT query uses 10x more energy than a Google search. Hyperscalers are signing 20-year nuclear PPAs. Power demand will double by 2030.' },
+      { sector: 'Rare Earth Minerals', direction: 'positive', magnitude: 'HIGH', stocks: ['MP', 'ALB'],
+        reason: 'GPU manufacturing requires neodymium (magnets), cobalt, and lithium. AI chip demand is creating entirely new mining demand cycles. China controls 85% of processing — creating a supply emergency.' },
+      { sector: 'Cybersecurity', direction: 'positive', magnitude: 'HIGH', stocks: ['CRWD', 'PANW'],
+        reason: 'AI systems are massive new attack surfaces. Every AI deployment requires endpoint security, network security and AI-specific threat detection. Budgets are exploding.' },
+      { sector: 'Semiconductor Equipment', direction: 'positive', magnitude: 'EXTREME', stocks: ['ASML', 'TSM'],
+        reason: 'AI chips require the most advanced semiconductor manufacturing. TSMC is building new fabs at record pace. ASML EUV machines are the bottleneck — 2-year order backlog.' },
+      { sector: 'Traditional IT Services', direction: 'negative', magnitude: 'MEDIUM', stocks: ['INTC'],
+        reason: 'AI automation is replacing traditional IT consulting, software maintenance, and data entry services. Legacy IT companies face existential disruption.' }
+    ]
+  },
+  {
+    id: 'european_rearmament',
+    trigger_event: 'European Rearmament & NATO 3% GDP Target',
+    trigger_sector: 'Geopolitics / Defence',
+    icon: '🛡️',
+    description: 'Russia-Ukraine war + NATO expansion commitments = largest European military spending surge since World War II. Every NATO member is racing to rebuild depleted arsenals.',
+    urgency: 'NOW',
+    effects: [
+      { sector: 'Defence Prime Contractors', direction: 'positive', magnitude: 'EXTREME', stocks: ['LMT', 'RTX', 'NOC'],
+        reason: 'NATO\'s new 3% GDP target means $400bn+ additional annual spending. F-35 backlog exceeds 1,000 aircraft. Patriot missile demand is unquenchable. This is a decade-long order cycle.' },
+      { sector: 'Cybersecurity', direction: 'positive', magnitude: 'HIGH', stocks: ['CRWD', 'PANW', 'PLTR'],
+        reason: 'State-sponsored cyberattacks from Russia and China are escalating. NATO cyber defence budgets growing 50%+ annually. Palantir and CrowdStrike winning government contracts.' },
+      { sector: 'Steel & Industrial Metals', direction: 'positive', magnitude: 'MEDIUM', stocks: ['MP'],
+        reason: 'Military hardware requires specialised alloys, rare earth magnets for missiles and aircraft. Domestic production being prioritised for security reasons.' },
+      { sector: 'AI Defence Systems', direction: 'positive', magnitude: 'HIGH', stocks: ['PLTR'],
+        reason: 'Modern warfare is AI warfare. Battlefield management AI, drone coordination, intelligence analysis — all going to PLTR and defence AI specialists.' }
+    ]
+  },
+  {
+    id: 'us_china_decoupling',
+    trigger_event: 'US-China Tech Decoupling & Tariff Escalation',
+    trigger_sector: 'Geopolitics / Trade',
+    icon: '🌏',
+    description: 'The world is splitting into two technological spheres. Western and Chinese tech supply chains are being forcibly separated. This is a 10-year structural shift.',
+    urgency: 'BUILDING',
+    effects: [
+      { sector: 'Rare Earth / Critical Materials', direction: 'positive', magnitude: 'EXTREME', stocks: ['MP', 'ALB'],
+        reason: 'China controls 85% of rare earth processing and 70% of lithium processing. Decoupling forces Western nations to build domestic supply chains at enormous cost — and enormous profit for Western producers.' },
+      { sector: 'Western Semiconductor Manufacturing', direction: 'positive', magnitude: 'HIGH', stocks: ['TSM', 'ASML', 'ARM'],
+        reason: 'US CHIPS Act ($52bn), EU Chips Act (€43bn), Japan chip subsidies — all funding domestic fab construction. TSMC Arizona, Samsung Texas, Intel Ohio.' },
+      { sector: 'Cybersecurity', direction: 'positive', magnitude: 'HIGH', stocks: ['CRWD', 'PANW'],
+        reason: 'Chinese espionage and cyberattacks are accelerating the decoupling. Every Western government is hardening its digital infrastructure against Chinese infiltration.' },
+      { sector: 'China-Exposed Consumer Tech', direction: 'negative', magnitude: 'HIGH', stocks: ['AAPL', 'TSLA', 'BABA'],
+        reason: 'Apple manufactures 90% in China (Foxconn). Tesla\'s Shanghai gigafactory. Both face tariff risk, consumer boycott risk, and supply chain disruption risk.' }
+    ]
+  },
+  {
+    id: 'energy_transition',
+    trigger_event: 'Accelerated Energy Transition & Green Policy',
+    trigger_sector: 'Policy / Energy',
+    icon: '⚡',
+    description: 'IRA ($369bn), EU Green Deal, UK net-zero commitments are the largest government-directed energy investments in history. Winners and losers are clearly identifiable.',
+    urgency: 'MULTI-YEAR',
+    effects: [
+      { sector: 'Renewable Energy Utilities', direction: 'positive', magnitude: 'HIGH', stocks: ['NEE', 'ENPH'],
+        reason: 'IRA tax credits ($3-7/watt) make renewable energy projects economically compelling. NEE is the largest wind/solar operator in the US with a 20GW+ pipeline.' },
+      { sector: 'Nuclear Power', direction: 'positive', magnitude: 'EXTREME', stocks: ['VST', 'CEG'],
+        reason: 'Nuclear is the only 24/7 carbon-free power source that can satisfy both climate goals AND AI data centre demand. First real nuclear renaissance in 40 years.' },
+      { sector: 'Lithium & Battery Materials', direction: 'positive', magnitude: 'HIGH', stocks: ['ALB', 'MP'],
+        reason: 'Every EV battery, grid storage system, and home battery pack needs lithium, cobalt, nickel. Energy transition is creating new commodity super-cycles.' },
+      { sector: 'Traditional Fossil Fuels', direction: 'negative', magnitude: 'MEDIUM', stocks: ['XOM'],
+        reason: 'Long-term demand destruction is inevitable. Institutional ESG pressures, carbon taxes, and EV adoption will structurally reduce oil demand over decades. Hold, don\'t add.' }
+    ]
+  },
+  {
+    id: 'obesity_drug_cascade',
+    trigger_event: 'GLP-1 Obesity Drug Revolution',
+    trigger_sector: 'Healthcare / Pharma',
+    icon: '💊',
+    description: 'GLP-1 drugs (Ozempic, Wegovy, Mounjaro) are the fastest-growing pharmaceutical products in history. But the cascade effects on other industries are equally dramatic.',
+    urgency: 'BUILDING',
+    effects: [
+      { sector: 'Pharma & Biotech', direction: 'positive', magnitude: 'EXTREME', stocks: ['LLY', 'NVO', 'RXRX'],
+        reason: 'GLP-1 market projected at $150bn by 2030. LLY and NVO are splitting a winner-takes-most market. Oral formulation could double the addressable patient population.' },
+      { sector: 'Medical Devices (Cardiac/Orthopaedic)', direction: 'negative', magnitude: 'HIGH', stocks: [],
+        reason: 'Obese patients need fewer hip replacements, cardiac procedures, and diabetes devices. GLP-1 success is structurally reducing demand for many medical procedures.' },
+      { sector: 'Food & Beverage', direction: 'negative', magnitude: 'MEDIUM', stocks: [],
+        reason: 'GLP-1 patients eat 20-30% fewer calories. Fast food, snack food, and sugary beverage companies face structural demand reduction from 100 million+ eventual GLP-1 users.' },
+      { sector: 'Fitness & Wellness', direction: 'positive', magnitude: 'MEDIUM', stocks: [],
+        reason: 'Lighter, healthier patients engage more with fitness. Gym memberships, sportswear, healthy food brands all benefit as the population becomes healthier.' }
+    ]
+  },
+  {
+    id: 'cyber_warfare_rise',
+    trigger_event: 'State-Sponsored Cyber Warfare Escalation',
+    trigger_sector: 'Geopolitics / Technology',
+    icon: '🔐',
+    description: 'Russia, China, Iran, and North Korea conducting unprecedented cyberattacks on Western infrastructure. Every government and corporation is now a target. Security is no longer optional.',
+    urgency: 'NOW',
+    effects: [
+      { sector: 'Cybersecurity Platforms', direction: 'positive', magnitude: 'EXTREME', stocks: ['CRWD', 'PANW', 'PLTR'],
+        reason: 'Government mandates for zero-trust architecture. Every critical infrastructure operator (energy, water, finance) legally required to upgrade security. Multi-year mandatory spending cycle.' },
+      { sector: 'AI Security & Intelligence', direction: 'positive', magnitude: 'HIGH', stocks: ['PLTR'],
+        reason: 'Threat intelligence and pattern recognition at AI scale is the only way to detect sophisticated state-sponsored attacks. Palantir\'s Gotham platform is the government standard.' },
+      { sector: 'Cryptocurrency Exchanges', direction: 'negative', magnitude: 'MEDIUM', stocks: ['COIN'],
+        reason: 'Crypto infrastructure is a prime target for North Korean and criminal hackers. Major exchange hacks reduce institutional trust and trigger regulatory scrutiny.' }
+    ]
+  },
+  {
+    id: 'latam_digital_boom',
+    trigger_event: 'Latin America Digital Economy Explosion',
+    trigger_sector: 'Emerging Markets / Technology',
+    icon: '🌎',
+    description: '650 million people, smartphone penetration at 80%+, banking penetration at only 50%. Latin America is at the same inflection point China was in 2010. Digital adoption is compressing 20 years into 5.',
+    urgency: 'BUILDING',
+    effects: [
+      { sector: 'Digital Banking / FinTech', direction: 'positive', magnitude: 'EXTREME', stocks: ['NU', 'MELI', 'AFRM'],
+        reason: 'Brazil, Mexico, Colombia — 300 million people getting smartphones and bank accounts simultaneously. Nu Holdings at 100 million customers is still early. MELI\'s Mercado Pago is the LatAm PayPal.' },
+      { sector: 'E-Commerce Platforms', direction: 'positive', magnitude: 'HIGH', stocks: ['MELI', 'SHOP'],
+        reason: 'LatAm e-commerce penetration is only 15% vs 35% in the US. Still 20 years of runway. MercadoLibre has logistics, payments, and marketplace that cannot be replicated quickly.' }
+    ]
+  },
+  {
+    id: 'interest_rate_cycle',
+    trigger_event: 'Federal Reserve Rate Cut Cycle Beginning',
+    trigger_sector: 'Macro / Monetary Policy',
+    icon: '🏦',
+    description: 'When the Fed cuts rates, the investment landscape shifts dramatically. Rate-sensitive sectors that suffered in 2022-2024 will become the biggest winners. Knowing this cascade in advance is crucial.',
+    urgency: 'WATCH',
+    effects: [
+      { sector: 'Clean Energy & Solar', direction: 'positive', magnitude: 'EXTREME', stocks: ['ENPH', 'NEE'],
+        reason: 'Residential solar and renewable projects are highly interest-rate sensitive (financed with debt). Rate cuts will dramatically cut project costs and restart the boom. ENPH could double from current levels.' },
+      { sector: 'FinTech / BNPL', direction: 'positive', magnitude: 'HIGH', stocks: ['AFRM', 'NU'],
+        reason: 'Buy-Now-Pay-Later and consumer lending become far more attractive when cost of capital falls. AFRM\'s unit economics improve dramatically. NU\'s Brazilian lending margins expand.' },
+      { sector: 'Banks (NII compression)', direction: 'negative', magnitude: 'MEDIUM', stocks: ['JPM', 'GS'],
+        reason: 'Lower rates mean lower net interest income. Banks thrived with high rates. Rate cuts will squeeze NII — but M&A and IPO revival may offset this partially.' }
+    ]
+  }
+];
+
+/* ──────────────────────────────────────────
+   TOOLTIP CONTENT
+   Explains what each metric/section means
+   in plain language + colour coding guide
+────────────────────────────────────────── */
+const TOOLTIPS = {
+  markets: {
+    title: 'Global Markets',
+    text: 'Live prices for the world\'s major indices, commodities and assets. Green = rising (bullish). Red = falling (bearish). The VIX (Fear Index) works inversely — a VIX above 30 signals extreme fear and is often a buying opportunity.',
+    color: 'blue'
+  },
+  sentiment: {
+    title: 'Fear & Greed Index',
+    text: '0 = Extreme Fear (markets oversold — historically good time to buy). 100 = Extreme Greed (markets overbought — consider reducing risk). The AI uses this alongside macro events to adjust recommendations. Sweet spot: 30-60.',
+    color: 'purple'
+  },
+  sectors: {
+    title: 'Sector Heat Map',
+    text: 'Shows which industries are gaining or losing today. Green sectors have positive momentum. Red sectors face headwinds. Use this to identify where money is rotating. The cascade engine below shows WHY sectors move together.',
+    color: 'green'
+  },
+  confidence: {
+    title: 'AI Confidence Score',
+    text: 'PhD-level model combining: fundamental analysis (PE, growth), macro event exposure (geopolitics, policy), technical momentum, and risk-adjusted probability. 80%+ = Strong conviction BUY. 60-79% = Moderate conviction. Below 50% = AVOID.',
+    color: 'purple'
+  },
+  risk: {
+    title: 'Risk Level',
+    text: 'LOW RISK (green): Blue-chip, dividend payers, defensives. Safe in most conditions. MEDIUM RISK (yellow): Growth stocks with solid fundamentals. Some volatility. HIGH RISK (red): Small caps, speculative, turnarounds. Only 5-10% of portfolio maximum.',
+    color: 'yellow'
+  },
+  target12m: {
+    title: '12-Month Price Target',
+    text: 'AI-projected fair value in 12 months based on earnings growth, comparable companies, and macro tailwinds. Not guaranteed — treat as probabilistic range. Higher confidence + lower current price = better risk/reward ratio.',
+    color: 'green'
+  },
+  cascade: {
+    title: 'Macro Cascade Engine',
+    text: 'PhD-level economic dependency mapping. When one sector or event occurs, it creates ripple effects across the entire economy. Example: AI boom → massive power demand → nuclear energy wins. Understanding these cascades gives you an edge weeks or months ahead of consensus.',
+    color: 'purple'
+  },
+  portfolio_risk: {
+    title: 'Geopolitical Risk Score',
+    text: 'Scores each of your holdings on their exposure to current geopolitical threats: trade wars, sanctions, regulatory risk, currency risk. GREEN = well-insulated. YELLOW = moderate exposure. RED = immediate review recommended.',
+    color: 'red'
+  },
+  pnl: {
+    title: 'Profit & Loss (P&L)',
+    text: 'Your unrealised gain or loss vs your average purchase price. Green = profitable position. Red = loss position. Note: unrealised losses only become real if you sell. The AI will alert you if a loss indicates the thesis has changed vs if it\'s just market noise.',
+    color: 'yellow'
   }
 };
 
