@@ -14,29 +14,45 @@ var APP = {
   liveTimer:  null
 };
 
+/* ── Tooltip state ── */
+var _ttTimer = null;
+
 /* ════════════════════════════════════════
    BOOT — runs as soon as DOM is ready
 ════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', function() {
-  try { loadSettings(); }   catch(e) { console.error('loadSettings', e); }
-  try { loadWatchlist(); }  catch(e) { console.error('loadWatchlist', e); }
-  try { apiLoadKeys(); }    catch(e) {}
+  try { loadSettings(); }    catch(e) { console.error('loadSettings', e); }
+  try { loadWatchlist(); }   catch(e) { console.error('loadWatchlist', e); }
+  try { loadPortfolio(); }   catch(e) { console.error('loadPortfolio', e); }
+  try { apiLoadKeys(); }     catch(e) {}
   try { updateMarketStatus(); } catch(e) {}
-  try { initRecs(); }       catch(e) { console.error('initRecs', e); }
-  try { renderHome(); }     catch(e) { console.error('renderHome', e); }
-  try { renderPicks(); }    catch(e) { console.error('renderPicks', e); }
-  try { renderNews('all'); }catch(e) { console.error('renderNews', e); }
-  try { renderAlerts(); }   catch(e) { console.error('renderAlerts', e); }
-  try { renderWatchlist(); }catch(e) { console.error('renderWatchlist', e); }
-  try { drawGauge(54); }    catch(e) {}
-  // Background live-data fetch — never blocks initial render
+  try { initRecs(); }        catch(e) { console.error('initRecs', e); }
+  try { renderHome(); }      catch(e) { console.error('renderHome', e); }
+  try { renderPicks(); }     catch(e) { console.error('renderPicks', e); }
+  try { renderNews('all'); } catch(e) { console.error('renderNews', e); }
+  try { renderAlerts(); }    catch(e) { console.error('renderAlerts', e); }
+  try { renderWatchlist(); } catch(e) { console.error('renderWatchlist', e); }
+  try { renderPortfolio(); } catch(e) { console.error('renderPortfolio', e); }
+  try { drawGauge(54); }     catch(e) {}
+  // Cascade engine on home page
   setTimeout(function() {
-    try { liveRefresh(); } catch(e) {}
+    try { renderCascades(); } catch(e) {}
+    try { liveRefresh(); }    catch(e) {}
   }, 100);
   // Auto-refresh every 5 minutes
   APP.liveTimer = setInterval(function() {
     try { liveRefresh(); } catch(e) {}
   }, 5 * 60 * 1000);
+  // Close tooltip on outside click
+  document.addEventListener('click', function(e) {
+    var popup = document.getElementById('tooltip-popup');
+    if (popup && popup.classList.contains('show')) {
+      if (!popup.contains(e.target) && !e.target.classList.contains('tooltip-btn') &&
+          !e.target.closest('.tooltip-btn')) {
+        hideTooltip();
+      }
+    }
+  });
 });
 
 /* ── Build recommendations from data.js ── */
@@ -138,7 +154,12 @@ function liveRefresh() {
       if (fg) updateGauge(fg.score, fg.label);
     }).catch(function() {}),
     fetchStockPrices(Object.keys(STOCKS)).then(function(prices) {
-      if (prices) updateStockPrices(prices);
+      if (prices) {
+        updateStockPrices(prices);
+        // Also update portfolio with live prices
+        try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
+        try { updateAlertBadge(); } catch(e) {}
+      }
     }).catch(function() {})
   ]).catch(function() {});
 }
@@ -182,22 +203,114 @@ function renderHome() {
   renderSectors();
   renderTopPicks();
   renderEventAlerts();
+  renderCascades();
   updateAIHeadline();
+  updateAlertBadge();
 }
 
-/* ── Sectors ── */
+/* ── Sectors (with color intensity coding) ── */
 function renderSectors() {
   var el = document.getElementById('sector-grid');
   if (!el) return;
   el.innerHTML = SECTORS.map(function(s) {
-    var cls = s.chg >= 0 ? 'up' : 'dn';
-    var sign = s.chg >= 0 ? '+' : '';
-    return '<div class="st">' +
+    var cls   = s.chg >= 0 ? 'up' : 'dn';
+    var sign  = s.chg >= 0 ? '+' : '';
+    var level = s.chg >= 1 ? 'strong-up' : s.chg >= 0.1 ? 'up' : s.chg >= -0.1 ? 'flat' : s.chg >= -1 ? 'down' : 'strong-dn';
+    return '<div class="st" data-chg-level="' + level + '">' +
       '<div class="st-em">' + s.emoji + '</div>' +
       '<div class="st-nm">' + s.name + '</div>' +
       '<div class="st-ch ' + cls + '">' + sign + s.chg.toFixed(1) + '%</div>' +
+      (s.note ? '<div class="st-note">' + s.note + '</div>' : '') +
       '</div>';
   }).join('');
+}
+
+/* ── Macro Cascade Engine renderer ── */
+function renderCascades() {
+  var el = document.getElementById('cascade-list');
+  if (!el || typeof SECTOR_CASCADES === 'undefined') return;
+
+  el.innerHTML = SECTOR_CASCADES.slice(0, 5).map(function(cascade, idx) {
+    var effects = cascade.effects.map(function(fx) {
+      var dirArrow = fx.direction === 'positive' ? '▲' : '▼';
+      var stocks = (fx.stocks || []).map(function(s) {
+        return '<span class="nc-stock" onclick="openStockDetail(\'' + s + '\')" style="cursor:pointer">' + s + '</span>';
+      }).join('');
+      return '<div class="cascade-effect">' +
+        '<div class="cascade-effect-top">' +
+          '<span class="cascade-dir-arrow ' + fx.direction + '">' + dirArrow + '</span>' +
+          '<span class="cascade-effect-sector">' + fx.sector + '</span>' +
+          '<span class="cascade-effect-mag ' + fx.magnitude + '">' + fx.magnitude + '</span>' +
+        '</div>' +
+        '<div class="cascade-effect-reason">' + fx.reason + '</div>' +
+        (stocks ? '<div class="cascade-effect-stocks">' + stocks + '</div>' : '') +
+      '</div>';
+    }).join('');
+
+    var urgencyCls = (cascade.urgency || 'WATCH').replace(/[^A-Z-]/g,'');
+
+    return '<div class="cascade-card">' +
+      '<div class="cascade-hdr" onclick="toggleCascade(' + idx + ')">' +
+        '<div class="cascade-emoji">' + (cascade.icon || '📊') + '</div>' +
+        '<div class="cascade-info">' +
+          '<div class="cascade-title">' + cascade.trigger_event + '</div>' +
+          '<div class="cascade-sub">' + cascade.trigger_sector + '</div>' +
+        '</div>' +
+        '<span class="cascade-urgency ' + urgencyCls + '">' + (cascade.urgency || 'WATCH') + '</span>' +
+        '<i class="fas fa-chevron-down cascade-chevron" id="cascade-chev-' + idx + '"></i>' +
+      '</div>' +
+      '<div class="cascade-body" id="cascade-body-' + idx + '">' +
+        '<div class="cascade-desc">' + cascade.description + '</div>' +
+        '<div class="cascade-effects">' + effects + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // Auto-open first cascade
+  toggleCascade(0);
+}
+
+function toggleCascade(idx) {
+  var body  = document.getElementById('cascade-body-' + idx);
+  var chev  = document.getElementById('cascade-chev-' + idx);
+  if (!body) return;
+  var open = body.classList.toggle('open');
+  if (chev) chev.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+/* ════════════════════════════════════════
+   TOOLTIP SYSTEM
+════════════════════════════════════════ */
+function showTooltip(event, key) {
+  event.stopPropagation();
+  var popup = document.getElementById('tooltip-popup');
+  var title = document.getElementById('tt-title');
+  var text  = document.getElementById('tt-text');
+  if (!popup || !title || !text) return;
+
+  var tt = (typeof TOOLTIPS !== 'undefined' && TOOLTIPS[key]) || { title: key, text: 'Information about this section.' };
+  title.textContent = tt.title;
+  text.textContent  = tt.text;
+
+  // Position near button
+  var rect = event.target.getBoundingClientRect();
+  var top  = rect.bottom + 6;
+  var left = Math.min(rect.left, window.innerWidth - 316);
+  if (left < 6) left = 6;
+
+  popup.style.top  = top  + 'px';
+  popup.style.left = left + 'px';
+  popup.classList.add('show');
+
+  // Auto-close after 8 seconds
+  clearTimeout(_ttTimer);
+  _ttTimer = setTimeout(hideTooltip, 8000);
+}
+
+function hideTooltip() {
+  var popup = document.getElementById('tooltip-popup');
+  if (popup) popup.classList.remove('show');
+  clearTimeout(_ttTimer);
 }
 
 /* ── Top Picks (first 3 short-term buys) ── */
@@ -422,11 +535,13 @@ function buildStockCard(r, compact) {
     '<span class="risk-val" style="color:var(--' + (riskCls === 'low' ? 'green' : riskCls === 'high' ? 'red' : 'yellow') + ')">' + (r.risk || 'Medium') + '</span>' +
     '</div>';
 
+  var capBadge = r.cap ? '<span class="cap-badge ' + r.cap + '">' + r.cap + '</span>' : '';
+
   return '<div class="sc ' + act + '" onclick="openStockDetail(\'' + sym + '\')">' +
     '<div class="sc-top">' +
       '<div class="sc-left">' +
         '<div class="sc-ico">' + sym.slice(0, 3) + '</div>' +
-        '<div><div class="sc-sym">' + sym + '</div><div class="sc-name">' + r.name + '</div></div>' +
+        '<div><div class="sc-sym">' + sym + capBadge + '</div><div class="sc-name">' + r.name + '</div></div>' +
       '</div>' +
       '<div class="sc-right">' +
         '<div class="sc-price" data-price-sym="' + sym + '">' + prStr + '</div>' +
@@ -645,7 +760,18 @@ function goPage(page) {
   if (btn) btn.classList.add('on');
   APP.page = page;
   window.scrollTo(0, 0);
-  if (page === 'watchlist') renderWatchlist();
+  if (page === 'watchlist')  renderWatchlist();
+  if (page === 'portfolio')  renderPortfolio();
+  if (page === 'alerts')     updateAlertBadge();
+  hideTooltip();
+}
+
+function updateAlertBadge() {
+  var portAlerts = typeof generatePortfolioAlerts === 'function' ? generatePortfolioAlerts() : [];
+  var badge = document.getElementById('portfolio-badge');
+  if (badge) {
+    badge.style.display = portAlerts.length ? 'flex' : 'none';
+  }
 }
 
 function switchTab(btn) {

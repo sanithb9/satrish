@@ -63,7 +63,9 @@
 
     <!-- Market Cards -->
     <div class="sh">
-      <h2><i class="fas fa-globe-americas"></i> Markets</h2>
+      <h2><i class="fas fa-globe-americas"></i> Markets
+        <button class="tooltip-btn" onclick="showTooltip(event,'markets')"><i class="fas fa-question"></i></button>
+      </h2>
       <span class="sh-right" id="txt-updated">Updating...</span>
     </div>
     <div class="cards-scroll">
@@ -92,11 +94,39 @@
     <div id="event-alerts"></div>
 
     <!-- Sectors -->
-    <div class="sh"><h2><i class="fas fa-th"></i> Sector Heat</h2></div>
+    <div class="sh">
+      <h2><i class="fas fa-th"></i> Sector Heat
+        <button class="tooltip-btn" onclick="showTooltip(event,'sectors')"><i class="fas fa-question"></i></button>
+      </h2>
+    </div>
+    <!-- Color legend -->
+    <div class="color-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Strong Up (&gt;1%)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(0,230,118,.5)"></div> Up</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--t3)"></div> Flat</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(255,68,85,.5)"></div> Down</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Strong Down</div>
+    </div>
     <div class="sector-grid" id="sector-grid"></div>
 
+    <!-- Macro Cascade Engine -->
+    <div class="sh cascade-section">
+      <h2><i class="fas fa-project-diagram"></i> Macro Cascade Engine
+        <button class="tooltip-btn" onclick="showTooltip(event,'cascade')"><i class="fas fa-question"></i></button>
+      </h2>
+    </div>
+    <div class="tip" style="margin-bottom:12px">
+      <i class="fas fa-brain"></i>
+      <span><strong>PhD-level dependency analysis:</strong> When one sector or event fires, see exactly which other sectors and stocks benefit or lose — weeks before consensus catches on.</span>
+    </div>
+    <div id="cascade-list"></div>
+
     <!-- Sentiment -->
-    <div class="sh"><h2><i class="fas fa-balance-scale"></i> Market Sentiment</h2></div>
+    <div class="sh">
+      <h2><i class="fas fa-balance-scale"></i> Market Sentiment
+        <button class="tooltip-btn" onclick="showTooltip(event,'sentiment')"><i class="fas fa-question"></i></button>
+      </h2>
+    </div>
     <div class="sent-card">
       <div class="gauge-wrap">
         <canvas id="gauge-canvas" width="180" height="110"></canvas>
@@ -119,7 +149,16 @@
   <section id="page-picks" class="page">
     <div class="pg-hdr">
       <h1><i class="fas fa-robot"></i> AI Stock Picks</h1>
-      <p>Recommendations based on global events, earnings &amp; technical signals</p>
+      <p>Recommendations based on global events, earnings &amp; technical signals — large AND small caps</p>
+    </div>
+    <!-- Color guide -->
+    <div class="color-legend" style="margin-bottom:13px">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> BUY</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> HOLD</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> WATCH</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> AVOID</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Small Cap</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Mid Cap</div>
     </div>
     <div class="tab-bar">
       <button class="tab-btn on" data-tab="short" onclick="switchTab(this)"><i class="fas fa-bolt"></i> Short Term</button>
@@ -127,11 +166,11 @@
       <button class="tab-btn" data-tab="avoid" onclick="switchTab(this)"><i class="fas fa-ban"></i> Avoid</button>
     </div>
     <div id="tab-short" class="tab-panel on">
-      <div class="tip"><i class="fas fa-bolt"></i> <strong>Short-term (days–3 months):</strong> Stocks with near-term catalysts, strong momentum and positive event exposure.</div>
+      <div class="tip"><i class="fas fa-bolt"></i> <strong>Short-term (days–3 months):</strong> Stocks with near-term catalysts, strong momentum and positive event exposure. Includes small caps with near-term triggers.</div>
       <div id="list-short"></div>
     </div>
     <div id="tab-long" class="tab-panel">
-      <div class="tip"><i class="fas fa-seedling"></i> <strong>Long-term (6 months–5 years):</strong> Fundamentally strong businesses with multi-year structural tailwinds.</div>
+      <div class="tip"><i class="fas fa-seedling"></i> <strong>Long-term (6 months–5 years):</strong> Fundamentally strong businesses with multi-year structural tailwinds. Includes emerging market and small cap growth plays.</div>
       <div id="list-long"></div>
     </div>
     <div id="tab-avoid" class="tab-panel">
@@ -154,14 +193,114 @@
       <button class="chip" data-filter="tech" onclick="filterNews(this)">Tech</button>
       <button class="chip" data-filter="energy" onclick="filterNews(this)">Energy</button>
     </div>
+    <!-- News color coding -->
+    <div class="color-legend" style="margin-bottom:10px">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Bullish for stocks</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Bearish for stocks</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--t3)"></div> Neutral / Mixed</div>
+    </div>
     <div id="news-list"></div>
+  </section>
+
+  <!-- ─── PORTFOLIO PAGE ─── -->
+  <section id="page-portfolio" class="page">
+    <div class="pg-hdr">
+      <h1><i class="fas fa-wallet"></i> My Portfolio</h1>
+      <p>Upload or enter your investments — AI monitors them 24/7 against global events</p>
+    </div>
+
+    <!-- Portfolio Summary -->
+    <div id="port-summary"></div>
+
+    <!-- Portfolio Tabs -->
+    <div class="port-tab-bar">
+      <button class="port-tab-btn on" data-tab="holdings" onclick="switchPortfolioTab('holdings')">
+        <i class="fas fa-list"></i> Holdings
+      </button>
+      <button class="port-tab-btn" data-tab="add" onclick="switchPortfolioTab('add')">
+        <i class="fas fa-plus-circle"></i> Add
+      </button>
+      <button class="port-tab-btn" data-tab="monitor" onclick="switchPortfolioTab('monitor')">
+        <i class="fas fa-shield-alt"></i> AI Alerts
+      </button>
+    </div>
+
+    <!-- Tab: Holdings -->
+    <div id="port-tab-holdings" class="port-tab-panel on">
+      <div id="port-empty" style="display:none">
+        <i class="fas fa-wallet"></i>
+        <h3>No holdings yet</h3>
+        <p>Go to the Add tab to upload a screenshot or enter manually</p>
+      </div>
+      <div id="port-holdings"></div>
+    </div>
+
+    <!-- Tab: Add Holdings -->
+    <div id="port-tab-add" class="port-tab-panel">
+
+      <!-- Image upload -->
+      <div class="tip" style="margin-bottom:12px">
+        <i class="fas fa-camera"></i>
+        <span><strong>Upload a screenshot</strong> of your broker portfolio — the AI will try to read your holdings automatically. Or enter them manually below.</span>
+      </div>
+
+      <label for="port-img-input" style="display:block">
+        <div class="upload-zone">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p>Tap to upload portfolio screenshot</p>
+          <em>Supports: PNG, JPG, PDF screenshot — from any broker app</em>
+        </div>
+      </label>
+      <input id="port-img-input" type="file" accept="image/*" style="display:none" onchange="handlePortfolioImageUpload(this)">
+
+      <img id="port-img-preview" src="" alt="Preview">
+
+      <div class="ocr-status" id="port-ocr-status">
+        <i class="fas fa-info-circle" style="margin-right:6px;color:var(--blue)"></i>
+        Upload an image or enter holdings manually below.
+      </div>
+
+      <button id="port-ocr-btn" class="pri-btn" onclick="attemptOCR()" style="display:none;margin-bottom:10px">
+        <i class="fas fa-magic"></i> Extract Holdings from Image
+      </button>
+
+      <textarea id="port-ocr-result" class="port-textarea"
+        placeholder="Holdings will appear here after scan, or type manually:&#10;SYMBOL, SHARES, AVG_PRICE&#10;&#10;Example:&#10;NVDA, 10, 750&#10;AAPL, 25, 190&#10;LMT, 5, 480"></textarea>
+
+      <button class="pri-btn" onclick="importHoldingsFromText()" style="margin-bottom:4px">
+        <i class="fas fa-file-import"></i> Import Holdings
+      </button>
+
+      <!-- Manual single entry -->
+      <div class="port-entry-form">
+        <h4><i class="fas fa-keyboard"></i> Add Single Holding</h4>
+        <div class="port-form-row">
+          <input id="ph-sym"    type="text"   placeholder="Symbol (e.g. NVDA)" autocapitalize="characters" autocomplete="off">
+          <input id="ph-shares" type="number" placeholder="Shares" min="0.001" step="0.001">
+          <input id="ph-cost"   type="number" placeholder="Avg Price $" min="0.01" step="0.01">
+        </div>
+        <button class="pri-btn" onclick="addSingleHolding()">
+          <i class="fas fa-plus"></i> Add to Portfolio
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab: AI Monitor -->
+    <div id="port-tab-monitor" class="port-tab-panel">
+      <div class="tip" style="margin-bottom:12px">
+        <i class="fas fa-brain"></i>
+        <span><strong>Continuous AI monitoring</strong> — your portfolio is cross-referenced against all geopolitical events, macro cascades, and sector rotations in real time.</span>
+      </div>
+      <div id="port-alerts-list"></div>
+    </div>
+
   </section>
 
   <!-- ─── WATCHLIST PAGE ─── -->
   <section id="page-watchlist" class="page">
     <div class="pg-hdr">
       <h1><i class="fas fa-star"></i> My Watchlist</h1>
-      <p>Track your own portfolio of stocks</p>
+      <p>Track stocks without adding them to your portfolio</p>
     </div>
     <div class="search-row">
       <div class="search-box">
@@ -187,6 +326,13 @@
       <h1><i class="fas fa-bell"></i> Smart Alerts</h1>
       <p>Your market guardian — protecting you from losses, guiding you to gains</p>
     </div>
+    <!-- Alert color coding -->
+    <div class="color-legend" style="margin-bottom:12px">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Buy signal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Caution / Review</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> News / Info</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div> AI Insight</div>
+    </div>
     <div id="alerts-list"></div>
     <div class="alerts-cfg">
       <h3>Alert Preferences</h3>
@@ -203,6 +349,10 @@
         <label class="tgl"><input type="checkbox" id="tog-ai" checked><span class="tgl-sl"></span></label>
       </div>
       <div class="tog-row">
+        <div><div class="tog-lbl">Portfolio Cascade Alerts</div><div class="tog-desc">When macro cascades affect your holdings</div></div>
+        <label class="tgl"><input type="checkbox" id="tog-cascade" checked><span class="tgl-sl"></span></label>
+      </div>
+      <div class="tog-row">
         <div><div class="tog-lbl">Market Open / Close</div><div class="tog-desc">US market session notifications</div></div>
         <label class="tgl"><input type="checkbox" id="tog-session" checked><span class="tgl-sl"></span></label>
       </div>
@@ -216,12 +366,23 @@
   <button class="nb on" data-page="home" onclick="goPage('home')"><i class="fas fa-home"></i><span>Home</span></button>
   <button class="nb" data-page="picks" onclick="goPage('picks')"><i class="fas fa-robot"></i><span>AI Picks</span></button>
   <button class="nb" data-page="news" onclick="goPage('news')"><i class="fas fa-newspaper"></i><span>News</span></button>
-  <button class="nb" data-page="watchlist" onclick="goPage('watchlist')"><i class="fas fa-star"></i><span>Watchlist</span></button>
+  <button class="nb" data-page="portfolio" onclick="goPage('portfolio')">
+    <i class="fas fa-wallet"></i><span>Portfolio</span>
+    <span class="nb-badge" id="portfolio-badge" style="display:none">!</span>
+  </button>
+  <button class="nb" data-page="watchlist" onclick="goPage('watchlist')"><i class="fas fa-star"></i><span>Watch</span></button>
   <button class="nb" data-page="alerts" onclick="goPage('alerts')">
     <i class="fas fa-bell"></i><span>Alerts</span>
     <span class="nb-badge" id="alerts-badge" style="display:none">0</span>
   </button>
 </nav>
+
+<!-- ═══ TOOLTIP POPUP ═══ -->
+<div id="tooltip-popup" class="tooltip-popup">
+  <button class="tt-close" onclick="hideTooltip()"><i class="fas fa-times"></i></button>
+  <h4 id="tt-title">Info</h4>
+  <p id="tt-text"></p>
+</div>
 
 <!-- ═══ SETTINGS MODAL ═══ -->
 <div class="modal" id="settings-modal">
@@ -247,7 +408,9 @@
       <div class="set-sec">
         <h3>Trading Preferences</h3>
         <div class="set-row">
-          <span>Risk Tolerance</span>
+          <span>Risk Tolerance
+            <button class="tooltip-btn" onclick="showTooltip(event,'risk')"><i class="fas fa-question"></i></button>
+          </span>
           <select id="setting-risk">
             <option value="low">Conservative</option>
             <option value="medium" selected>Moderate</option>
@@ -293,6 +456,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/api.js"></script>
+<script src="js/portfolio.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
