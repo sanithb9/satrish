@@ -1,16 +1,28 @@
 {
   "name": "StockSense AI — Personal Market Advisor",
   "short_name": "StockSense AI",
-  "description": "AI-powered stock market intelligence. Real-time picks for Trading 212 investors.",
+  "description": "AI-powered stock market intelligence with political event analysis and real-time recommendations",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
-  "orientation": "portrait-primary",
+  "lang": "en",
   "icons": [
-    { "src": "./assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ],
-  "categories": ["finance", "productivity"]
+  "categories": ["finance", "business"],
+  "screenshots": []
 }
