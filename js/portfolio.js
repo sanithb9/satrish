@@ -507,7 +507,7 @@ function addSingleHolding() {
           updatePortfolioPrices(prices);
           renderPortfolioSummary();
           renderPortfolioHoldings();
-          showToast(upperSym + ' live price: $' + prices[upperSym].price.toFixed(2), 'ok');
+          showToast(upperSym + ' live price: ' + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(upperSym) : '$') + prices[upperSym].price.toFixed(2), 'ok');
         }
       });
     } catch(e) {}

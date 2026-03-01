@@ -212,7 +212,131 @@ var STOCK_LOOKUP = [
   { sym:'LIT',   name:'Global X Lithium & Battery ETF', ex:'NYSE'  },
   { sym:'REMX',  name:'VanEck Rare Earth/Strategic Metals', ex:'NYSE'},
   { sym:'ICLN',  name:'iShares Global Clean Energy ETF',ex:'NASDAQ'},
-  { sym:'NLR',   name:'VanEck Uranium+Nuclear Energy ETF',ex:'NYSE' }
+  { sym:'NLR',   name:'VanEck Uranium+Nuclear Energy ETF',ex:'NYSE' },
+
+  /* ── UK Blue Chip (LSE) ── */
+  { sym:'RR.L',   name:'Rolls-Royce Holdings',            ex:'LSE'  },
+  { sym:'BA.L',   name:'BAE Systems PLC',                 ex:'LSE'  },
+  { sym:'HSBA.L', name:'HSBC Holdings PLC',               ex:'LSE'  },
+  { sym:'LLOY.L', name:'Lloyds Banking Group',            ex:'LSE'  },
+  { sym:'BARC.L', name:'Barclays PLC',                    ex:'LSE'  },
+  { sym:'STAN.L', name:'Standard Chartered PLC',          ex:'LSE'  },
+  { sym:'BP.L',   name:'BP plc',                          ex:'LSE'  },
+  { sym:'SHEL.L', name:'Shell plc',                       ex:'LSE'  },
+  { sym:'AZN.L',  name:'AstraZeneca PLC',                 ex:'LSE'  },
+  { sym:'GSK.L',  name:'GSK plc (GlaxoSmithKline)',       ex:'LSE'  },
+  { sym:'ULVR.L', name:'Unilever PLC',                    ex:'LSE'  },
+  { sym:'BATS.L', name:'British American Tobacco',        ex:'LSE'  },
+  { sym:'DGE.L',  name:'Diageo PLC',                      ex:'LSE'  },
+  { sym:'NG.L',   name:'National Grid PLC',               ex:'LSE'  },
+  { sym:'VOD.L',  name:'Vodafone Group PLC',              ex:'LSE'  },
+  { sym:'BT-A.L', name:'BT Group PLC',                    ex:'LSE'  },
+  { sym:'REL.L',  name:'RELX Group PLC',                  ex:'LSE'  },
+  { sym:'EXPN.L', name:'Experian PLC',                    ex:'LSE'  },
+  { sym:'PRU.L',  name:'Prudential PLC',                  ex:'LSE'  },
+  { sym:'LSEG.L', name:'LSEG (London Stock Exchange Group)',ex:'LSE' },
+  { sym:'IMB.L',  name:'Imperial Brands PLC',             ex:'LSE'  },
+  { sym:'SGE.L',  name:'Sage Group PLC',                  ex:'LSE'  },
+  { sym:'CRH.L',  name:'CRH PLC',                         ex:'LSE'  },
+  { sym:'AAL.L',  name:'Anglo American PLC',              ex:'LSE'  },
+  { sym:'GLEN.L', name:'Glencore PLC',                    ex:'LSE'  },
+  { sym:'LGEN.L', name:'Legal & General Group',           ex:'LSE'  },
+  { sym:'AV.L',   name:'Aviva PLC',                       ex:'LSE'  },
+  { sym:'TSCO.L', name:'Tesco PLC',                       ex:'LSE'  },
+  { sym:'WPP.L',  name:'WPP PLC',                         ex:'LSE'  },
+  { sym:'MNG.L',  name:'M&G PLC',                         ex:'LSE'  },
+  { sym:'RKT.L',  name:'Reckitt Benckiser Group',         ex:'LSE'  },
+  { sym:'FERG.L', name:'Ferguson Enterprises',            ex:'LSE'  },
+  { sym:'ABF.L',  name:'Associated British Foods',        ex:'LSE'  },
+  { sym:'AUTO.L', name:'Auto Trader Group',               ex:'LSE'  },
+  { sym:'III.L',  name:'3i Group PLC',                    ex:'LSE'  },
+  { sym:'SMT.L',  name:'Scottish Mortgage Investment Trust',ex:'LSE' },
+  { sym:'BVIC.L', name:'Britvic PLC',                     ex:'LSE'  },
+  { sym:'MNDI.L', name:'Mondi PLC',                       ex:'LSE'  },
+  { sym:'INF.L',  name:'Informa PLC',                     ex:'LSE'  },
+  { sym:'IAG.L',  name:'International Airlines Group',    ex:'LSE'  },
+  { sym:'EZJ.L',  name:'easyJet PLC',                     ex:'LSE'  },
+
+  /* ── UK/Int\'l stocks also listed in US (ADRs / dual-listed) ── */
+  { sym:'AZN',    name:'AstraZeneca PLC (NASDAQ ADR)',    ex:'NASDAQ'},
+  { sym:'SHEL',   name:'Shell plc (NYSE)',                ex:'NYSE'  },
+  { sym:'BP',     name:'BP plc (NYSE ADR)',               ex:'NYSE'  },
+  { sym:'GSK',    name:'GSK plc (NYSE ADR)',              ex:'NYSE'  },
+  { sym:'BCS',    name:'Barclays PLC (NYSE ADR)',         ex:'NYSE'  },
+  { sym:'HBC',    name:'HSBC Holdings (NYSE ADR)',        ex:'NYSE'  },
+  { sym:'UL',     name:'Unilever PLC (NYSE ADR)',         ex:'NYSE'  },
+  { sym:'BTI',    name:'British American Tobacco (NYSE ADR)',ex:'NYSE'},
+  { sym:'DEO',    name:'Diageo PLC (NYSE ADR)',           ex:'NYSE'  },
+  { sym:'NGG',    name:'National Grid (NYSE ADR)',        ex:'NYSE'  },
+  { sym:'VOD',    name:'Vodafone Group (NASDAQ ADR)',     ex:'NASDAQ'},
+  { sym:'SAP',    name:'SAP SE (NYSE ADR)',               ex:'NYSE'  },
+  { sym:'NVS',    name:'Novartis AG (NYSE ADR)',          ex:'NYSE'  },
+  { sym:'RHHBY',  name:'Roche Holdings (OTC ADR)',        ex:'OTC'   },
+  { sym:'NSRGY',  name:'Nestlé SA (OTC ADR)',             ex:'OTC'   },
+  { sym:'EADSY',  name:'Airbus SE (OTC ADR)',             ex:'OTC'   },
+  { sym:'BAYRY',  name:'Bayer AG (OTC ADR)',              ex:'OTC'   },
+
+  /* ── European Large Cap (local tickers) ── */
+  { sym:'SAP.DE',  name:'SAP SE',                         ex:'XETRA' },
+  { sym:'SIE.DE',  name:'Siemens AG',                     ex:'XETRA' },
+  { sym:'BMW.DE',  name:'BMW AG',                         ex:'XETRA' },
+  { sym:'MBG.DE',  name:'Mercedes-Benz Group',            ex:'XETRA' },
+  { sym:'VOW3.DE', name:'Volkswagen AG (Preferred)',       ex:'XETRA' },
+  { sym:'BAYN.DE', name:'Bayer AG',                       ex:'XETRA' },
+  { sym:'ALV.DE',  name:'Allianz SE',                     ex:'XETRA' },
+  { sym:'BAS.DE',  name:'BASF SE',                        ex:'XETRA' },
+  { sym:'DTE.DE',  name:'Deutsche Telekom AG',            ex:'XETRA' },
+  { sym:'MUV2.DE', name:'Munich Re (Muenchener Rueck)',   ex:'XETRA' },
+  { sym:'DB1.DE',  name:'Deutsche Börse AG',              ex:'XETRA' },
+  { sym:'AIR.PA',  name:'Airbus SE',                      ex:'Euronext Paris' },
+  { sym:'MC.PA',   name:'LVMH Moët Hennessy Louis Vuitton',ex:'Euronext Paris'},
+  { sym:'TTE.PA',  name:'TotalEnergies SE',               ex:'Euronext Paris' },
+  { sym:'SAN.PA',  name:'Sanofi SA',                      ex:'Euronext Paris' },
+  { sym:'BNP.PA',  name:'BNP Paribas SA',                 ex:'Euronext Paris' },
+  { sym:'OR.PA',   name:'L\'Oréal SA',                    ex:'Euronext Paris' },
+  { sym:'RI.PA',   name:'Pernod Ricard SA',               ex:'Euronext Paris' },
+  { sym:'CAP.PA',  name:'Capgemini SE',                   ex:'Euronext Paris' },
+  { sym:'DSY.PA',  name:'Dassault Systèmes SE',           ex:'Euronext Paris' },
+  { sym:'SU.PA',   name:'Schneider Electric SE',          ex:'Euronext Paris' },
+  { sym:'HO.PA',   name:'Thales SA',                      ex:'Euronext Paris' },
+  { sym:'SGO.PA',  name:'Compagnie de Saint-Gobain',      ex:'Euronext Paris' },
+  { sym:'ASML.AS', name:'ASML Holding NV (AEX)',          ex:'Euronext Amsterdam'},
+  { sym:'PHIA.AS', name:'Philips NV',                     ex:'Euronext Amsterdam'},
+  { sym:'NESN.SW', name:'Nestlé SA',                      ex:'SIX Swiss Exchange'},
+  { sym:'ROG.SW',  name:'Roche Holdings AG',              ex:'SIX Swiss Exchange'},
+  { sym:'NOVN.SW', name:'Novartis AG',                    ex:'SIX Swiss Exchange'},
+  { sym:'ABBN.SW', name:'ABB Ltd',                        ex:'SIX Swiss Exchange'},
+  { sym:'UBSG.SW', name:'UBS Group AG',                   ex:'SIX Swiss Exchange'},
+  { sym:'IBE.MC',  name:'Iberdrola SA',                   ex:'BME Madrid'       },
+  { sym:'SAN.MC',  name:'Banco Santander SA',             ex:'BME Madrid'       },
+  { sym:'ENEL.MI', name:'Enel SpA',                       ex:'Borsa Italiana'   },
+  { sym:'UCG.MI',  name:'UniCredit SpA',                  ex:'Borsa Italiana'   },
+  { sym:'ERG.MI',  name:'ERG SpA',                        ex:'Borsa Italiana'   },
+
+  /* ── Chinese Tech & Consumer ADRs ── */
+  { sym:'BIDU',   name:'Baidu Inc (ADR)',                  ex:'NASDAQ'},
+  { sym:'NTES',   name:'NetEase Inc (ADR)',                ex:'NASDAQ'},
+  { sym:'TCOM',   name:'Trip.com Group (ADR)',             ex:'NASDAQ'},
+  { sym:'BILI',   name:'Bilibili Inc (ADR)',               ex:'NASDAQ'},
+  { sym:'IQ',     name:'iQIYI Inc (ADR)',                  ex:'NASDAQ'},
+  { sym:'YUMC',   name:'Yum China Holdings',              ex:'NYSE'  },
+  { sym:'VIPS',   name:'Vipshop Holdings (ADR)',           ex:'NYSE'  },
+  { sym:'TME',    name:'Tencent Music Entertainment (ADR)',ex:'NYSE'  },
+  { sym:'HTHT',   name:'H World Group (Huazhu Hotels ADR)',ex:'NASDAQ'},
+  { sym:'ZTO',    name:'ZTO Express (Cayman) ADR',         ex:'NYSE'  },
+  { sym:'DIDI',   name:'DiDi Global ADR',                  ex:'OTC'   },
+
+  /* ── Indian ADRs (NYSE/NASDAQ) ── */
+  { sym:'INFY',   name:'Infosys Limited (ADR)',            ex:'NYSE'  },
+  { sym:'WIT',    name:'Wipro Limited (ADR)',              ex:'NYSE'  },
+  { sym:'HDB',    name:'HDFC Bank Limited (ADR)',          ex:'NYSE'  },
+  { sym:'IBN',    name:'ICICI Bank Limited (ADR)',         ex:'NYSE'  },
+  { sym:'RDY',    name:'Dr. Reddy\'s Laboratories (ADR)', ex:'NYSE'  },
+  { sym:'WNS',    name:'WNS Holdings Limited (ADR)',       ex:'NYSE'  },
+  { sym:'MTCL',   name:'Mastech Holdings (IT services)',   ex:'NYSE'  },
+  { sym:'SIFY',   name:'Sify Technologies (ADR)',          ex:'NASDAQ'},
+  { sym:'AZRE',   name:'Azure Power Global (ADR)',         ex:'NYSE'  },
+  { sym:'REXI',   name:'Resource Capital Corp',            ex:'NYSE'  }
 ];
 
 /* De-duplicate by symbol */
@@ -226,13 +350,43 @@ var STOCK_LOOKUP = [
 })();
 
 /* ════════════════════════════════════════
+   CURRENCY HELPER
+   Maps exchange / ticker suffix → symbol
+════════════════════════════════════════ */
+function getCurrencySymbol(sym, ex) {
+  if (!sym) return '$';
+  var upper = sym.toUpperCase();
+  /* UK LSE stocks trade in GBp (pence) */
+  if (upper.endsWith('.L'))  return 'p';
+  /* European exchanges */
+  if (upper.endsWith('.DE') || upper.endsWith('.PA') || upper.endsWith('.AS') ||
+      upper.endsWith('.MC') || upper.endsWith('.MI') || upper.endsWith('.BR') ||
+      upper.endsWith('.LS') || upper.endsWith('.HE'))  return '€';
+  /* Swiss */
+  if (upper.endsWith('.SW')) return 'CHF ';
+  /* Exchange fallback */
+  if (ex) {
+    var exU = ex.toUpperCase();
+    if (exU.indexOf('LSE') !== -1)   return 'p';
+    if (exU.indexOf('XETRA') !== -1 || exU.indexOf('EURONEXT') !== -1 ||
+        exU.indexOf('BORSA') !== -1 || exU.indexOf('BME') !== -1) return '€';
+    if (exU.indexOf('SIX') !== -1)   return 'CHF ';
+  }
+  return '$';
+}
+
+/* ════════════════════════════════════════
    LIVE QUOTE FETCH (Yahoo Finance)
    Returns { price, chg, name } or null
 ════════════════════════════════════════ */
 function fetchLiveQuote(sym) {
-  return fetchStockPrices([sym.toUpperCase()]).then(function(prices) {
-    if (prices && prices[sym.toUpperCase()]) {
-      return prices[sym.toUpperCase()];
+  /* Preserve original casing for international tickers (e.g. RR.L, AIR.PA) */
+  var canonical = sym.replace(/^([a-zA-Z0-9]+)(\.[a-zA-Z]+)?$/, function(_, base, suffix) {
+    return base.toUpperCase() + (suffix ? suffix.toUpperCase() : '');
+  });
+  return fetchStockPrices([canonical]).then(function(prices) {
+    if (prices && prices[canonical]) {
+      return prices[canonical];
     }
     return null;
   }).catch(function() { return null; });
@@ -306,8 +460,9 @@ function initAutocomplete(config) {
       if (showPrice && _prices[s.sym]) {
         var p = _prices[s.sym];
         var isUp = p.chg >= 0;
+        var currSym = getCurrencySymbol(s.sym, s.ex);
         priceHtml = '<span class="ac-price">' +
-          '$' + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) +
+          currSym + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) +
           ' <span class="' + (isUp?'ac-up':'ac-dn') + '">' + (isUp?'+':'') + p.chg.toFixed(2) + '%</span>' +
           '</span>';
       } else if (showPrice) {
@@ -446,7 +601,7 @@ function initPortfolioAutocomplete() {
           var isUp = livePrice.chg >= 0;
           priceDisp.innerHTML =
             '<i class="fas fa-circle" style="color:var(--green);font-size:7px"></i> Live: ' +
-            '<strong>$' + livePrice.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>' +
+            '<strong>' + getCurrencySymbol(stock.sym, stock.ex) + livePrice.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>' +
             ' <span class="' + (isUp?'up':'dn') + '">' + (isUp?'+':'') + livePrice.chg.toFixed(2) + '%</span>' +
             ' — <em style="color:var(--t3)">Enter avg price you paid below</em>';
           priceDisp.style.display = 'flex';

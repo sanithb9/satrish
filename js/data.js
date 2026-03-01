@@ -573,6 +573,288 @@ const STOCKS = {
     risks: ['Brazilian real currency devaluation', 'Brazilian economic recession', 'Credit losses if Brazilian consumers stress', 'Regulatory changes in financial services'],
     political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
     t212_search: 'NU'
+  },
+
+  /* ════════════════════════════════════════════
+     UK STOCKS (LSE)
+     ════════════════════════════════════════════ */
+  'RR.L': {
+    name: 'Rolls-Royce Holdings', sector: 'Defence & Aerospace', exchange: 'LSE',
+    price: 440, chg: +1.2, cap: 'large',
+    action: 'BUY', risk: 'Medium', horizon: 'both',
+    confidence: 88,
+    target12m: '+35%', targetLong: '+150%', pe: 28, growth: '+57% YoY',
+    thesis_short: 'Remarkable turnaround under CEO Tufan Erginbilgin. Long-Term Service Agreement (LTSA) revenue from aircraft engine maintenance is now a high-margin, recurring cash machine. Civil aviation recovering strongly post-COVID. Free cash flow turned massively positive.',
+    thesis_long: 'Rolls-Royce engines power 50% of widebody commercial aircraft globally — every flight hour generates service revenue for decades. Defence division (Typhoon, submarine nuclear reactors) benefits from NATO spending surge. Small Modular Reactors (SMR) is a potential £multi-billion new revenue stream if UK government awards contracts.',
+    why_now: 'Free cash flow guidance upgraded 3x in 2 years. SMR contract decision expected. Defence orders accelerating with European rearmament. Still trading at significant discount to US defence peers.',
+    catalysts: ['UK SMR contract award (potential £10bn+)', 'NATO 3% GDP defence spending = more UK government contracts', 'Civil aviation engine flying hours near pre-COVID peak', 'Power Systems division benefiting from data centre energy demand', 'Further buyback/dividend initiation as FCF builds'],
+    risks: ['Boeing/Airbus production delays reduce engine deliveries', 'SMR contracts delayed or cancelled', 'Pension deficit obligations', 'Airlines cutting routes in recession', 'Currency risk (USD-denominated revenue vs GBP costs)'],
+    political: { tariffs: -0.5, nato: +3, ai_regulation: 0, green: +1 },
+    t212_search: 'RR.'
+  },
+  'BA.L': {
+    name: 'BAE Systems PLC', sector: 'Defence', exchange: 'LSE',
+    price: 1380, chg: +0.8, cap: 'large',
+    action: 'BUY', risk: 'Low', horizon: 'both',
+    confidence: 86,
+    target12m: '+25%', targetLong: '+120%', pe: 22, growth: '+14% YoY',
+    thesis_short: 'UK\'s largest defence company and one of the world\'s top 10. Record order backlog of £74bn. Governments are committing to 3% GDP+ defence spending for the first time since the Cold War. BAE is the prime beneficiary in UK and globally.',
+    thesis_long: 'BAE dominates UK\'s most critical defence programmes: Dreadnought submarines (40-year lifecycle), Typhoon/Tempest combat aircraft, Type 26 frigates, cyber warfare, and AUKUS submarine programme. Multi-decade revenue visibility with government-backed contracts. Electronic warfare is a rapidly growing segment.',
+    why_now: 'NATO rearmament is structural, not cyclical. UK committed to 2.5% GDP on defence by 2027. BAE\'s backlog is at all-time highs. AUKUS submarine deal adds Australian revenue. US F-35 electronics and UK Typhoon upgrades both driving growth.',
+    catalysts: ['UK defence budget increase to 2.5% GDP', 'AUKUS submarine programme (Australia) revenues', 'Tempest / Global Combat Air Programme (GCAP)', 'Electronic warfare & cyber segment acceleration', 'US F-35 ship sets and weapons production'],
+    risks: ['Defence budget cuts if new government elected', 'Programme delays or cost overruns on major contracts', 'Supply chain constraints (titanium, specialised components)', 'Geopolitical de-escalation reducing urgency', 'USD/GBP currency headwinds'],
+    political: { tariffs: -0.5, nato: +3, ai_regulation: 0, green: 0 },
+    t212_search: 'BA.'
+  },
+  'HSBA.L': {
+    name: 'HSBC Holdings PLC', sector: 'Financials', exchange: 'LSE',
+    price: 820, chg: +0.4, cap: 'large',
+    action: 'BUY', risk: 'Medium', horizon: 'both',
+    confidence: 78,
+    target12m: '+20%', targetLong: '+80%', pe: 8, growth: '+12% YoY',
+    thesis_short: 'World\'s largest trade finance bank, pivoted to Asia. Earnings power at near-record levels. Dividend yield of 6%+ and £3bn+ buyback programme. Trading at a significant discount to book value despite strong profitability.',
+    thesis_long: 'HSBC is uniquely positioned at the intersection of East-West trade finance. No Western bank can match its Asian network. As Asia\'s trade grows and middle classes expand, HSBC\'s franchise becomes more valuable. Wealth management in Asia is still in early innings.',
+    why_now: 'Dividend restored to pre-COVID levels plus special dividends. Buyback programme ongoing. CEO Georges Elhedery focused on shareholder returns. Hong Kong and Asia operations generating record profits despite global headwinds.',
+    catalysts: ['Asia wealth management business scaling', 'Special dividends and buybacks continuation', 'Hong Kong commercial real estate stabilisation', 'Trade finance volumes increasing with Asia supply chains', 'Potential re-rating if Western investor sentiment improves on China'],
+    risks: ['China/Hong Kong geopolitical escalation', 'US-China trade war impacting Asian trade volumes', 'UK base rates declining faster than expected', 'Credit losses in commercial real estate', 'Regulatory capital requirements increasing'],
+    political: { tariffs: -1, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'HSBA'
+  },
+  'LLOY.L': {
+    name: 'Lloyds Banking Group', sector: 'Financials', exchange: 'LSE',
+    price: 72, chg: -0.3, cap: 'large',
+    action: 'WATCH', risk: 'Medium', horizon: 'long',
+    confidence: 62,
+    target12m: '+15%', targetLong: '+60%', pe: 7, growth: '+8% YoY',
+    thesis_short: 'UK\'s largest mortgage lender and retail bank. 7%+ dividend yield. Cheap at 7x earnings. However, the motor finance PCP (Personal Contract Purchase) mis-selling scandal creates a significant unknown liability — court ruling expected.',
+    thesis_long: 'If the motor finance scandal is resolved favorably (compensation capped at manageable levels), Lloyds is deeply undervalued. Strong UK mortgage franchise, improving net interest margin, and diversified insurance business (Scottish Widows).',
+    why_now: 'WATCH until the Supreme Court ruling on motor finance PCP claims is handed down. If liability is capped or reversed, LLOY could surge 30%+ quickly. Current price bakes in a worst-case scenario. High-risk, high-reward situation requiring patience.',
+    catalysts: ['Favourable Supreme Court ruling on motor finance claims', 'UK interest rates staying higher for longer', 'Halifax mortgage market share recovery', 'Dividend growth and buyback programme', 'Insurance (Scottish Widows) de-merger optionality'],
+    risks: ['Motor finance PCP claims liability (could be £20bn+ worst case)', 'UK house price decline impacting mortgage book', 'Recession increasing credit losses', 'Bank of England rate cuts compressing margins faster than expected', 'Regulatory capital surcharge'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'LLOY'
+  },
+  'BARC.L': {
+    name: 'Barclays PLC', sector: 'Financials', exchange: 'LSE',
+    price: 295, chg: +0.6, cap: 'large',
+    action: 'BUY', risk: 'Medium', horizon: 'both',
+    confidence: 74,
+    target12m: '+25%', targetLong: '+90%', pe: 8, growth: '+18% YoY',
+    thesis_short: 'Barclays is the most undervalued UK bank. Trading at 0.5x book value while generating 10%+ return on equity. CEO C.S. Venkatakrishnan\'s 3-year plan to increase UK retail profitability and return capital is working. Investment banking revenues strong.',
+    thesis_long: 'Unique dual model — UK retail bank + global investment bank. Investment banking (M&A advisory, fixed income, equities) generates higher-margin revenues than pure retail. No motor finance exposure unlike Lloyds. Buyback programme accelerating.',
+    why_now: 'Upgrade cycle: analysts continuously upgrading earnings estimates. Cost savings programme delivering. Capital ratio improving faster than expected. UK consumer spending resilient. Investment bank benefiting from M&A recovery.',
+    catalysts: ['Buyback programme acceleration', 'UK consumer business profitability improvement', 'Investment bank M&A fee recovery', 'Cost savings delivering above targets', 'Re-rating towards book value as ROE improves'],
+    risks: ['Investment bank revenue cyclicality', 'UK retail credit losses in recession', 'Regulatory capital requirements', 'US DOJ investigations (historical matters)', 'Competition from digital banks (Monzo, Starling)'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'BARC'
+  },
+  'AZN': {
+    name: 'AstraZeneca PLC', sector: 'Healthcare / Pharma', exchange: 'NASDAQ',
+    price: 71, chg: +0.5, cap: 'large',
+    action: 'BUY', risk: 'Low', horizon: 'both',
+    confidence: 85,
+    target12m: '+30%', targetLong: '+130%', pe: 20, growth: '+18% YoY',
+    thesis_short: 'UK/Swedish pharmaceutical giant with one of the strongest oncology pipelines in the world. Tagrisso (lung cancer), Imfinzi (immunotherapy), and Enhertu (breast/gastric cancer) are all growing rapidly. Revenue surpassed $50bn. Emerging markets expansion especially in China.',
+    thesis_long: 'AstraZeneca is becoming the world\'s most valuable pharmaceutical company. Rare diseases platform (Alexion acquisition), cardiovascular drugs (Farxiga), and respiratory franchise add stability. With 15+ potential blockbusters in the pipeline, the next decade looks extremely promising. UK\'s largest company by market cap.',
+    why_now: 'China revenue recovery after government crackdown resolved. Enhertu approved for multiple new cancer indications. Rare disease portfolio fully integrated. Pipeline inflection with 5+ Phase 3 readouts in 2025.',
+    catalysts: ['Enhertu new cancer indications (lung, gastric, breast)', 'China revenue normalisation and growth resumption', 'Rare disease platform (Alexion) next-generation drugs', 'Obesity/cardiometabolic drugs (MASH programme)', 'US/EU regulatory approvals for pipeline assets'],
+    risks: ['China investigation overhang (executive detained)', 'Patent cliffs for older drugs (Crestor, Nexium)', 'Clinical trial failures in late-stage pipeline', 'Generic competition in mature markets', 'Currency risk (significant non-USD revenue)'],
+    political: { tariffs: -0.5, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'AZN'
+  },
+  'SHEL': {
+    name: 'Shell plc', sector: 'Energy', exchange: 'NYSE',
+    price: 72, chg: -0.4, cap: 'large',
+    action: 'HOLD', risk: 'Low', horizon: 'both',
+    confidence: 71,
+    target12m: '+15%', targetLong: '+50%', pe: 11, growth: '+4% YoY',
+    thesis_short: 'Anglo-Dutch oil major with best-in-class LNG (liquefied natural gas) business. Integrated Gas division is the crown jewel — Shell is the world\'s largest LNG trader. Strong cash generation funds a growing dividend and buyback programme. Less capital-intensive than US peers.',
+    thesis_long: 'Shell is diversifying faster than US peers into LNG, chemical recycling, and low-carbon energy — while maintaining massive cash generation from oil and gas for the transition. Chemicals business restructured. Renewables position being built methodically.',
+    why_now: 'Global LNG demand structurally growing (Europe replacing Russian gas, Asia growing). Share buybacks continuing. Dividend increased. CEO Wael Sawan focussed on capital discipline and returns to shareholders rather than vanity ESG projects.',
+    catalysts: ['LNG demand surge from Europe (Russia gas replacement)', 'Asian LNG demand growth (India, China)', 'Chemicals restructuring delivering cost savings', 'Continued buyback programme (£3.5bn per quarter)', 'Deepwater Gulf of Mexico production growth'],
+    risks: ['Oil price decline below $60/barrel stress-testing cash flows', 'Carbon taxes and stranded asset risk long-term', 'LNG supply glut from US/Qatar new capacity', 'Activist investor pressure on climate strategy', 'Refining margins normalising'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: -1 },
+    t212_search: 'SHEL'
+  },
+  'BP': {
+    name: 'BP plc', sector: 'Energy', exchange: 'NYSE',
+    price: 34, chg: -0.7, cap: 'large',
+    action: 'WATCH', risk: 'Medium', horizon: 'long',
+    confidence: 64,
+    target12m: '+20%', targetLong: '+70%', pe: 10, growth: '-5% YoY',
+    thesis_short: 'BP is the cheapest of the major oil companies. Trading at multi-year lows due to strategy uncertainty — overpromised on renewables, now pivoting back to oil and gas under CEO Murray Auchincloss. Activist investors pushing for breakup or strategy change. Potential re-rating.',
+    thesis_long: 'If activist investors succeed in pushing BP to spin off or simplify its portfolio, significant value could be unlocked. BP\'s upstream assets (North Sea, Gulf of Mexico, Azerbaijan) are world-class. Trading at 40% discount to US peers (Exxon, Chevron) on most metrics.',
+    why_now: 'WATCH — company undergoing strategic review. Could be a takeover target (Shell, Exxon have been mooted). Activist hedge funds (Elliott Management) pushing for change. New CEO must show credibility before investing confidently.',
+    catalysts: ['Activist investor (Elliott) pushing for strategy change', 'Potential takeover bid from larger rival', 'Oil prices rising above $80/barrel', 'Asset sales unlocking value', 'Simplification of portfolio and cost cutting'],
+    risks: ['Oil price decline making assets uneconomic', 'Deepwater Horizon legacy costs continuing', 'Renewables strategy U-turn damaging credibility further', 'Dividend cut risk if cash flows disappoint', 'US Permian Basin underperformance vs peers'],
+    political: { tariffs: 0, nato: 0, ai_regulation: 0, green: -1 },
+    t212_search: 'BP.'
+  },
+  'GLEN.L': {
+    name: 'Glencore PLC', sector: 'Materials / Mining', exchange: 'LSE',
+    price: 320, chg: +1.1, cap: 'large',
+    action: 'WATCH', risk: 'High', horizon: 'long',
+    confidence: 63,
+    target12m: '+20%', targetLong: '+100%', pe: 12, growth: '-8% YoY',
+    thesis_short: 'World\'s largest commodities trader and one of the biggest mining companies. Unique business model: mines copper, cobalt, coal — and also trades commodities globally (making money on volatility itself). Copper is the critical metal for energy transition.',
+    thesis_long: 'Copper demand will double by 2040 for EVs, grids, and renewables. Glencore is a top-3 copper miner globally. Cobalt is crucial for batteries (Glencore controls the world\'s largest cobalt mine, Mutanda in DRC). Trading business generates profit regardless of commodity direction.',
+    why_now: 'Coal division (controversial but highly profitable) is being wound down by 2035 — but generating billions in cash meantime. Copper assets in South America and Africa are being expanded. Takeover speculation after failed Rio Tinto merger bid.',
+    catalysts: ['Copper price surge as supply deficit widens', 'Cobalt prices recovering from cyclical lows', 'Coal cash generation extending shareholder returns', 'Potential M&A activity in mining consolidation', 'Energy transition driving copper demand acceleration'],
+    risks: ['Commodity price collapse (copper below $7000/tonne stress test)', 'DRC (Congo) political instability affecting Katanga mines', 'ESG investor pressure (coal operations)', 'China slowdown reducing commodity demand', 'Currency and political risk in emerging market operations'],
+    political: { tariffs: -1, nato: 0, ai_regulation: 0, green: -1 },
+    t212_search: 'GLEN'
+  },
+
+  /* ════════════════════════════════════════════
+     EUROPEAN STOCKS
+     ════════════════════════════════════════════ */
+  'SAP': {
+    name: 'SAP SE', sector: 'Technology / Enterprise Software', exchange: 'NYSE',
+    price: 250, chg: +1.4, cap: 'large',
+    action: 'BUY', risk: 'Low', horizon: 'both',
+    confidence: 83,
+    target12m: '+25%', targetLong: '+100%', pe: 42, growth: '+10% YoY',
+    thesis_short: 'Europe\'s most valuable tech company and the global leader in enterprise resource planning (ERP). 90%+ of large corporations worldwide use SAP. Cloud migration (S/4HANA Cloud) is creating a massive, recurring revenue base that is only ~30% complete. AI embedded into core products.',
+    thesis_long: 'Every company moving to SAP S/4HANA is a multi-year, multi-million dollar project — creating deep switching costs and 25+ year customer relationships. Business AI (Joule copilot) is becoming embedded in ERP workflows globally. SAP is one of the few European companies that can genuinely compete with US big tech.',
+    why_now: 'Cloud revenue growing 25%+ while total revenue accelerating. AI copilot "Joule" integrated across SAP portfolio. Majority of installed base still on legacy SAP ECC (pre-2027 end-of-support driving forced migration). Record revenue guidance for 2025.',
+    catalysts: ['S/4HANA cloud migration — 20,000+ legacy customers still to migrate', 'SAP Joule AI copilot adoption across ERP suite', 'Rise with SAP hyperscaler partnerships (AWS, Azure, Google)', 'Business Network marketplace expansion', 'SuccessFactors (HR) and Ariba (procurement) cloud growth'],
+    risks: ['Migration projects slower than expected', 'Competition from Oracle Fusion cloud ERP', 'Economic slowdown reducing enterprise IT spending', 'German economic weakness (large home market)', 'Currency risk (EUR/USD)'],
+    political: { tariffs: -0.5, nato: 0, ai_regulation: -0.5, green: 0 },
+    t212_search: 'SAP'
+  },
+  'AIR.PA': {
+    name: 'Airbus SE', sector: 'Industrials / Aerospace', exchange: 'Euronext Paris',
+    price: 175, chg: +0.6, cap: 'large',
+    action: 'BUY', risk: 'Low', horizon: 'both',
+    confidence: 81,
+    target12m: '+20%', targetLong: '+90%', pe: 25, growth: '+8% YoY',
+    thesis_short: 'Airbus is one of just two companies (with Boeing) that can build large commercial aircraft. Boeing\'s production crisis (737 MAX safety scandal, quality failures) is handing Airbus a decade of market share gains. Current backlog: 8,700+ aircraft worth €600bn+ — a 10+ year production queue.',
+    thesis_long: 'The global airline fleet needs to double by 2040 (Asia Pacific growth). Airbus A320neo family dominates narrowbody market at 60%+ share. A350 widebody has zero serious competition after Boeing 787 delivery problems. Defence division growing with European rearmament.',
+    why_now: 'Boeing production cuts = Airbus gaining orders faster than it can build. Delivery rate target of 75 aircraft/month by 2027 = massive revenue step-up. Defence orders accelerating (A400M, Eurofighter, helicopters). Dividend reinstated and growing.',
+    catalysts: ['Boeing production crisis driving Airbus order conversions', 'Delivery rate ramp to 75/month by 2027', 'A350 widebody demand from Asian carriers', 'European defence spending (Eurofighter Typhoon upgrades)', 'Supply chain normalisation enabling output acceleration'],
+    risks: ['Engine supplier bottlenecks (CFM, P&W) limiting output', 'Boeing recovery taking market share back', 'Airline bankruptcies cancelling orders (recession risk)', 'Supply chain delays in titanium, composites', 'European carbon regulations increasing aircraft operating costs'],
+    political: { tariffs: -0.5, nato: +1.5, ai_regulation: 0, green: -0.5 },
+    t212_search: 'AIR'
+  },
+  'MC.PA': {
+    name: 'LVMH Moët Hennessy', sector: 'Consumer / Luxury', exchange: 'Euronext Paris',
+    price: 600, chg: -0.8, cap: 'large',
+    action: 'WATCH', risk: 'Medium', horizon: 'long',
+    confidence: 69,
+    target12m: '+15%', targetLong: '+80%', pe: 22, growth: '-3% YoY',
+    thesis_short: 'World\'s largest luxury conglomerate. 75+ ultra-premium brands: Louis Vuitton, Dior, Moët & Chandon, Hennessy, Bulgari, TAG Heuer. Luxury is one of the most resilient business models — affluent consumers rarely trade down. Currently experiencing a cyclical slowdown in China.',
+    thesis_long: 'The global luxury market will grow as Asian middle classes expand. LVMH has pricing power like no other company — Louis Vuitton raised prices 50%+ post-COVID with zero demand destruction. Bernard Arnault has compounded shareholder value at 15%+ annually for 30 years.',
+    why_now: 'WATCH — China recovery is the key catalyst. Chinese consumers account for ~35% of global luxury spending. When China confidence returns, LVMH snaps back hard. Currently trading at 5-year valuation lows. Entry point building.',
+    catalysts: ['China consumer confidence recovery', 'US luxury spending resilience', 'Fashion & Leather Goods (LV, Dior) pricing power', 'Perfumes & Cosmetics (Sephora) growth', 'DFS (travel retail) benefiting from Asian travel recovery'],
+    risks: ['China economic slowdown prolonging luxury weakness', 'US tariffs on European luxury goods', 'Bernard Arnault succession uncertainty', 'Anti-ostentation regulations in China', 'Counterfeit luxury market growing'],
+    political: { tariffs: -2, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'LVMH'
+  },
+  'SIE.DE': {
+    name: 'Siemens AG', sector: 'Industrials / Technology', exchange: 'XETRA',
+    price: 185, chg: +0.9, cap: 'large',
+    action: 'BUY', risk: 'Low', horizon: 'both',
+    confidence: 77,
+    target12m: '+20%', targetLong: '+85%', pe: 18, growth: '+7% YoY',
+    thesis_short: 'Germany\'s most diversified industrial-technology conglomerate. Siemens Digital Industries (factory automation + software) is the key growth driver. Industrial automation with AI is the next wave. Infrastructure & Transport (trains, smart grids) benefits from European green transition.',
+    thesis_long: 'Siemens is becoming a software and automation powerhouse. Siemens Digital Industries Software (formerly Mentor) competes with Dassault Systèmes in industrial simulation. Factory of the future = digital twin + AI + robotics — Siemens is uniquely positioned across all three layers.',
+    why_now: 'European industrial re-shoring (away from China) driving factory automation capex. Grid infrastructure spending exploding as Europe electrifies. Siemens Energy (partially owned) is a major beneficiary of power transition.',
+    catalysts: ['Factory automation capex cycle upcycle', 'Smart grid infrastructure spending surge', 'Digital Industries Software growth accelerating', 'European manufacturing reshoring orders', 'Siemens Healthineers growth (medical imaging AI)'],
+    risks: ['German industrial recession reducing automation orders', 'Competition from Rockwell Automation, ABB', 'China slowdown (15% revenue exposure)', 'Interest rate sensitivity (long-cycle business)', 'Euro weakness vs USD'],
+    political: { tariffs: -1, nato: +0.5, ai_regulation: -0.5, green: +1 },
+    t212_search: 'SIE'
+  },
+
+  /* ════════════════════════════════════════════
+     CHINESE STOCKS (US-listed ADRs)
+     ════════════════════════════════════════════ */
+  'BIDU': {
+    name: 'Baidu Inc', sector: 'Technology', exchange: 'NASDAQ',
+    price: 90, chg: -1.1, cap: 'large',
+    action: 'WATCH', risk: 'High', horizon: 'long',
+    confidence: 56,
+    target12m: '+30%', targetLong: '+120%', pe: 12, growth: '+5% YoY',
+    thesis_short: 'China\'s dominant search engine (70%+ market share) — China\'s equivalent of Google. Also the world\'s most advanced autonomous driving technology platform (Apollo). Ernie Bot LLM is China\'s leading large language model. Trading at extremely cheap valuation (12x earnings) due to China regulatory and geopolitical discount.',
+    thesis_long: 'If China\'s tech regulatory environment stabilises and autonomous driving commercialises, Baidu is deeply undervalued. Apollo robotaxi service (Wuhan, Chongqing) already operating. Cloud AI business growing rapidly. Search advertising cash flow funds all growth investments.',
+    why_now: 'WATCH — high risk, high reward. China government support for domestic AI is increasing. US-China geopolitical tensions create headline risk but Baidu is unlikely to be sanctioned (not a hardware company). Extremely cheap but requires China macro confidence.',
+    catalysts: ['Ernie Bot monetisation via API (enterprise AI)', 'Apollo robotaxi commercial expansion nationally', 'China AI investment cycle driven by DeepSeek success', 'Online marketing recovery as China economy recovers', 'Cloud AI (Baidu Intelligent Cloud) growth acceleration'],
+    risks: ['US-China geopolitical escalation (ADR delisting risk)', 'Chinese government regulatory crackdown renewal', 'ByteDance/Douyin taking search queries from younger users', 'AI competition from Alibaba, Tencent, Chinese startups', 'Chinese economic slowdown reducing ad spend'],
+    political: { tariffs: -3, nato: -2, ai_regulation: -2, green: 0 },
+    t212_search: 'BIDU'
+  },
+  'TCOM': {
+    name: 'Trip.com Group', sector: 'Consumer / Travel', exchange: 'NASDAQ',
+    price: 58, chg: +0.9, cap: 'mid',
+    action: 'BUY', risk: 'High', horizon: 'both',
+    confidence: 72,
+    target12m: '+35%', targetLong: '+130%', pe: 18, growth: '+20% YoY',
+    thesis_short: 'China\'s dominant online travel platform (hotels, flights, trains). Chinese outbound travel is recovering strongly post-COVID. Trip.com international platform growing rapidly — now the world\'s #2 OTA by some metrics. Domestic China travel is booming.',
+    thesis_long: 'China has 1.4bn people with rapidly growing disposable incomes and passport ownership. Chinese outbound tourism is only at 50% of pre-COVID levels — the recovery runway is massive. Trip.com is the default booking platform for Chinese travellers internationally.',
+    why_now: 'International revenue growing 70%+ as Chinese tourists return. Operating leverage kicking in — revenue growing faster than costs. PE of 18x is extremely cheap for a dominant platform with 20%+ growth. Buffett-like position in Chinese travel.',
+    catalysts: ['Chinese outbound travel recovery to pre-COVID levels', 'International (non-China) platform expansion', 'Operating leverage improving margins', 'Middle East and Asia Pacific market expansion', 'Domestic China travel volume growth'],
+    risks: ['US-China geopolitical tensions discouraging investment', 'COVID resurgence or new pandemic risk', 'Chinese government travel restrictions', 'Competition from Meituan, Alibaba\'s Fliggy', 'Currency risk if RMB weakens'],
+    political: { tariffs: -2, nato: -1, ai_regulation: -1, green: 0 },
+    t212_search: 'TCOM'
+  },
+  'BILI': {
+    name: 'Bilibili Inc', sector: 'Technology / Media', exchange: 'NASDAQ',
+    price: 22, chg: +1.8, cap: 'mid',
+    action: 'WATCH', risk: 'High', horizon: 'long',
+    confidence: 58,
+    target12m: '+40%', targetLong: '+200%', pe: null, growth: '+24% YoY',
+    thesis_short: 'China\'s YouTube — the dominant long-form video and animation platform for Gen Z and Millennials in China. Known for high-quality user-generated content and "danmaku" (real-time comments). 100mn+ monthly active users with exceptional engagement. Approaching breakeven.',
+    thesis_long: 'Bilibili has the most loyal and engaged young audience in China — and loyalty translates to premium subscription revenue, games, and e-commerce. As China\'s Gen Z ages into prime earning years, BILI monetisation accelerates. The "otaku" culture platform has zero serious competitor.',
+    why_now: 'First-ever quarter of GAAP profitability achieved. Advertising revenue recovering as China economy improves. Cost cuts have dramatically improved unit economics. Live streaming and premium membership growing.',
+    catalysts: ['First sustained GAAP profitability in 2025', 'Advertising revenue recovery with China economic rebound', 'Gaming pipeline (original games IP development)', 'E-commerce integration for content creators', 'Overseas expansion (anime is globally popular)'],
+    risks: ['Content regulation by Chinese government', 'Competition from Douyin (TikTok in China), WeChat Video', 'US-China geopolitical tensions (ADR delisting risk)', 'Gaming licence approvals slow in China', 'User monetisation lower than US peers'],
+    political: { tariffs: -2, nato: -2, ai_regulation: -1, green: 0 },
+    t212_search: 'BILI'
+  },
+
+  /* ════════════════════════════════════════════
+     INDIAN STOCKS (US-listed ADRs)
+     ════════════════════════════════════════════ */
+  'INFY': {
+    name: 'Infosys Limited', sector: 'Technology / IT Services', exchange: 'NYSE',
+    price: 21, chg: +0.4, cap: 'large',
+    action: 'WATCH', risk: 'Low', horizon: 'both',
+    confidence: 68,
+    target12m: '+18%', targetLong: '+70%', pe: 24, growth: '+8% YoY',
+    thesis_short: 'India\'s second-largest IT services company. 300,000+ employees delivering software development, digital transformation, and AI services to global Fortune 500 clients. AI-driven transformation services (Infosys Topaz) is the key new revenue stream. Solid dividend payer.',
+    thesis_long: 'Indian IT services companies have a structural cost advantage: the same software engineering talent costs 1/5th of US/UK equivalents. As companies globally face pressure to cut IT costs while adopting AI, Indian IT firms like Infosys become essential partners. 35+ years of Fortune 500 client relationships.',
+    why_now: 'AI-driven projects (Topaz AI) growing at 40%+ — most clients want to transform using AI and Infosys provides the delivery. Revenue guidance upgraded. Margin recovery from post-COVID wage inflation. Share buyback programme continuing.',
+    catalysts: ['AI transformation services (Infosys Topaz) growth', 'US corporate IT spending recovery', 'Banking & Financial Services vertical recovery', 'Margin improvement from cost rationalisation', 'Return to 8-10% revenue growth'],
+    risks: ['Demand slowdown if US/European recession hits corporate IT budgets', 'Immigration policy tightening increasing onsite delivery costs', 'Competition from Accenture, TCS, Wipro', 'AI disruption (automation reducing headcount-based billing)', 'Currency risk (USD revenue, INR cost base)'],
+    political: { tariffs: -0.5, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'INFY'
+  },
+  'HDB': {
+    name: 'HDFC Bank Limited', sector: 'Financials', exchange: 'NYSE',
+    price: 65, chg: +0.5, cap: 'large',
+    action: 'BUY', risk: 'Medium', horizon: 'long',
+    confidence: 76,
+    target12m: '+25%', targetLong: '+110%', pe: 18, growth: '+15% YoY',
+    thesis_short: 'India\'s largest private sector bank and one of the best-run banks in Asia. India\'s middle class is growing at 50 million+ per year — each new middle-class family needs a bank account, mortgage, car loan, and investment product. HDFC Bank is the default choice for India\'s rising middle class.',
+    thesis_long: 'India will become the world\'s 3rd largest economy by 2030 (already past UK and France). HDFC Bank has 180 million+ customers and only 8% credit card penetration in India vs 30%+ in developed markets — the growth runway is decades long. Post-merger with HDFC Ltd, the combined bank is formidable.',
+    why_now: 'Post HDFC-HDFC Bank merger integration largely complete. Loan growth accelerating. NIM (net interest margin) stabilising after post-merger pressure. India economy growing 7%+ — best major economy in the world. FII (foreign institutional investor) flows returning to Indian equities.',
+    catalysts: ['India GDP growth 6-7% sustaining loan demand', 'Credit card and consumer finance penetration increasing', 'NIM recovery and expansion post-merger', 'Rural banking expansion (underserved markets)', 'India stock market index weight increase attracting passive flows'],
+    risks: ['Reserve Bank of India rate cuts compressing NIM', 'Asset quality deterioration if Indian economy slows', 'HDFC Ltd merger integration unexpected costs', 'Competition from digital banks (Paytm, PhonePe, Jio Financial)', 'FII selling pressure if USD strengthens'],
+    political: { tariffs: -0.5, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'HDB'
+  },
+  'WIT': {
+    name: 'Wipro Limited', sector: 'Technology / IT Services', exchange: 'NYSE',
+    price: 5, chg: +0.3, cap: 'large',
+    action: 'WATCH', risk: 'Medium', horizon: 'long',
+    confidence: 60,
+    target12m: '+15%', targetLong: '+60%', pe: 21, growth: '+5% YoY',
+    thesis_short: 'India\'s third-largest IT services company. Restructuring under CEO Srinivas Pallia after a difficult period. AI services (Wipro ai360) growing. Cheaper than Infosys and TCS on valuation. Good entry for exposure to Indian IT sector at a discount.',
+    thesis_long: 'India has 5 million+ software engineers graduating every year — the largest tech talent pool in the world. Wipro services 200+ Fortune 500 clients with deep relationships in banking, healthcare, and manufacturing. As US and European companies reduce IT costs, Indian IT grows.',
+    why_now: 'WATCH — recovery underway but conviction lower than Infosys. New CEO implementing restructuring. Large deals returning (consulting + IT bundled). Good dividend. Better entry if AI services ramp faster than expected.',
+    catalysts: ['Wipro ai360 AI transformation wins', 'Large deal momentum recovery ($1bn+ contracts)', 'Europe (Capco consulting) revenue growth', 'Operational efficiency improvements', 'Return to double-digit revenue growth'],
+    risks: ['Revenue growth lagging peers (TCS, Infosys)', 'Talent attrition higher than peers historically', 'US visa policy tightening', 'Execution risk in CEO transition period', 'Competition for talent with larger Indian IT peers'],
+    political: { tariffs: -0.5, nato: 0, ai_regulation: 0, green: 0 },
+    t212_search: 'WIT'
   }
 };
 
