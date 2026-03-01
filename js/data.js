@@ -956,7 +956,7 @@ function buildRecommendations(riskLevel) {
   Object.keys(STOCKS).forEach(function(sym) {
     var s = STOCKS[sym];
 
-    // Base score from hardcoded confidence
+    // Base score from qualitative analysis
     var score = s.confidence;
 
     // Apply macro event adjustments
@@ -964,6 +964,15 @@ function buildRecommendations(riskLevel) {
       if (ev.affected_bull && ev.affected_bull.indexOf(sym) !== -1) score += (ev.score_bull || 5);
       if (ev.affected_bear && ev.affected_bear.indexOf(sym) !== -1) score += (ev.score_bear || -6);
     });
+
+    // Live price momentum signal — s.chg is updated with real-time day % change
+    // A stock moving strongly today is a meaningful short-term signal
+    if (typeof s.chg === 'number' && s.chg !== 0) {
+      if      (s.chg >  5) score += 6;   // strong positive momentum
+      else if (s.chg >  2) score += 3;   // mild positive momentum
+      else if (s.chg < -5) score -= 8;   // strong sell-off — reduce conviction
+      else if (s.chg < -2) score -= 4;   // mild negative momentum
+    }
 
     // Risk tolerance adjustment
     if (risk === 'low' && s.risk === 'High') score -= 20;

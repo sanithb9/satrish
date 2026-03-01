@@ -166,8 +166,21 @@ function liveRefresh() {
       } catch(e) {}
       return fetchStockPrices(syms).then(function(prices) {
         if (prices) {
+          /* 1. Push live prices into STOCKS objects so all downstream code uses real data */
           updateStockPrices(prices);
+
+          /* 2. Rebuild recommendations with live price momentum now baked in */
+          try { APP.recs = buildRecommendations(APP.settings.risk || 'medium'); } catch(e) {}
+
+          /* 3. Re-render ALL analysis sections with live data */
+          try { renderTopPicks(); }       catch(e) {}  /* Home: top 3 picks */
+          try { renderPicks(); }          catch(e) {}  /* Picks page: immediate/short/long/avoid */
+          try { renderWatchlist(prices); } catch(e) {} /* Watchlist with live prices */
+
+          /* 4. Re-render portfolio with live prices */
           try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
+
+          /* 5. Refresh alert badge (uses generatePortfolioAlerts with live prices) */
           try { updateAlertBadge(); } catch(e) {}
         }
       }).catch(function() {});
@@ -944,6 +957,11 @@ function goPage(page) {
   if (page === 'watchlist')  renderWatchlist();
   if (page === 'portfolio')  renderPortfolio();
   if (page === 'alerts')     updateAlertBadge();
+  /* Picks page: always rebuild recs with latest prices before rendering */
+  if (page === 'picks') {
+    try { APP.recs = buildRecommendations(APP.settings.risk || 'medium'); } catch(e) {}
+    try { renderPicks(); } catch(e) {}
+  }
   hideTooltip();
 }
 
