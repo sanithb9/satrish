@@ -492,13 +492,25 @@ function addSingleHolding() {
 
   if (!sym || !shares || !cost) { showToast('Fill in symbol, shares, and price', 'info'); return; }
 
-  if (addHolding(sym, shares, cost)) {
+  var upperSym = sym.toUpperCase();
+  if (addHolding(upperSym, shares, cost)) {
     document.getElementById('ph-sym').value    = '';
     document.getElementById('ph-shares').value = '';
     document.getElementById('ph-cost').value   = '';
     renderPortfolio();
-    showToast('Added ' + sym.toUpperCase() + ' to portfolio', 'ok');
+    showToast('Added ' + upperSym + ' to portfolio — fetching live price…', 'ok');
     switchPortfolioTab('holdings');
+    /* Immediately fetch live price for the newly added stock */
+    try {
+      fetchStockPrices([upperSym]).then(function(prices) {
+        if (prices && prices[upperSym]) {
+          updatePortfolioPrices(prices);
+          renderPortfolioSummary();
+          renderPortfolioHoldings();
+          showToast(upperSym + ' live price: $' + prices[upperSym].price.toFixed(2), 'ok');
+        }
+      });
+    } catch(e) {}
   } else {
     showToast('Invalid — check symbol, shares & price', 'err');
   }

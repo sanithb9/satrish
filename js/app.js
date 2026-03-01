@@ -154,13 +154,24 @@ function liveRefresh() {
     fetchFearGreed().then(function(fg) {
       if (fg) updateGauge(fg.score, fg.label);
     }).catch(function() {}),
-    fetchStockPrices(Object.keys(STOCKS)).then(function(prices) {
-      if (prices) {
-        updateStockPrices(prices);
-        try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
-        try { updateAlertBadge(); } catch(e) {}
-      }
-    }).catch(function() {})
+    (function() {
+      /* Collect all symbols: built-in database + any portfolio holdings not already in STOCKS */
+      var syms = Object.keys(STOCKS);
+      try {
+        if (PORTFOLIO && PORTFOLIO.holdings) {
+          PORTFOLIO.holdings.forEach(function(h) {
+            if (h.sym && syms.indexOf(h.sym) === -1) syms.push(h.sym);
+          });
+        }
+      } catch(e) {}
+      return fetchStockPrices(syms).then(function(prices) {
+        if (prices) {
+          updateStockPrices(prices);
+          try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
+          try { updateAlertBadge(); } catch(e) {}
+        }
+      }).catch(function() {});
+    })()
   ]).catch(function() {});
 }
 
