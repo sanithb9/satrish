@@ -158,3 +158,28 @@ function scoreToLabel(s) {
   if (s <= 75) return 'Greed';
   return 'Extreme Greed';
 }
+
+/* ══════════════════════════════════════════════
+   FX RATES (live via Yahoo Finance)
+   Fallbacks are reasonably close approximations.
+══════════════════════════════════════════════ */
+var FX_RATES = {
+  GBPUSD: 1.27,   /* 1 GBP = X USD  */
+  GBPEUR: 1.17,   /* 1 GBP = X EUR  */
+  GBPCHF: 1.14    /* 1 GBP = X CHF  */
+};
+
+function fetchFXRates() {
+  var syms = 'GBPUSD=X,GBPEUR=X,GBPCHF=X';
+  var url  = YF_BASE + syms + '&fields=regularMarketPrice';
+  return proxyFetch(url).then(function(data) {
+    if (!data || !data.quoteResponse || !data.quoteResponse.result) return;
+    data.quoteResponse.result.forEach(function(q) {
+      var p = q.regularMarketPrice;
+      if (!p || p <= 0) return;
+      if (q.symbol === 'GBPUSD=X') FX_RATES.GBPUSD = p;
+      if (q.symbol === 'GBPEUR=X') FX_RATES.GBPEUR = p;
+      if (q.symbol === 'GBPCHF=X') FX_RATES.GBPCHF = p;
+    });
+  }).catch(function() {});
+}

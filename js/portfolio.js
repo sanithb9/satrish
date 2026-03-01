@@ -11,11 +11,69 @@ var PORTFOLIO = {
 };
 
 /* ════════════════════════════════════════
+   PORTFOLIO DISPLAY CURRENCY
+   Default GBP — user can toggle to USD/EUR.
+   All summary totals are converted to this.
+════════════════════════════════════════ */
+var PORTFOLIO_CURRENCY = 'GBP';
+
+function loadPortfolioCurrency() {
+  try { PORTFOLIO_CURRENCY = localStorage.getItem('ss_port_currency') || 'GBP'; } catch(e) {}
+}
+
+function setPortfolioCurrency(c) {
+  PORTFOLIO_CURRENCY = c;
+  try { localStorage.setItem('ss_port_currency', c); } catch(e) {}
+  renderPortfolio();
+}
+
+function getPortfolioCurrencySymbol() {
+  return PORTFOLIO_CURRENCY === 'USD' ? '$' : PORTFOLIO_CURRENCY === 'EUR' ? '€' : '£';
+}
+
+/* Detect native price currency from ticker suffix */
+function getNativeCurrency(sym) {
+  if (!sym) return 'USD';
+  var u = sym.toUpperCase();
+  if (u.endsWith('.L'))  return 'GBp'; /* LSE stocks quoted in pence */
+  if (u.endsWith('.DE') || u.endsWith('.PA') || u.endsWith('.AS') ||
+      u.endsWith('.MC') || u.endsWith('.MI') || u.endsWith('.BR') ||
+      u.endsWith('.LS') || u.endsWith('.HE')) return 'EUR';
+  if (u.endsWith('.SW')) return 'CHF';
+  return 'USD';
+}
+
+/*
+  Convert a value from a stock's native currency → GBP → target display currency.
+  FX_RATES from api.js: { GBPUSD: 1.27, GBPEUR: 1.17, GBPCHF: 1.14 }
+*/
+function toPortfolioBase(value, sym) {
+  if (!value || isNaN(value)) return 0;
+  var rates  = (typeof FX_RATES !== 'undefined') ? FX_RATES : { GBPUSD: 1.27, GBPEUR: 1.17, GBPCHF: 1.14 };
+  var native = getNativeCurrency(sym);
+
+  /* Step 1 — convert native → GBP */
+  var gbp;
+  if      (native === 'GBp') gbp = value / 100;                   /* pence → pounds    */
+  else if (native === 'USD') gbp = value / (rates.GBPUSD || 1.27);
+  else if (native === 'EUR') gbp = value / (rates.GBPEUR || 1.17);
+  else if (native === 'CHF') gbp = value / (rates.GBPCHF || 1.14);
+  else                       gbp = value / (rates.GBPUSD || 1.27); /* assume USD        */
+
+  /* Step 2 — convert GBP → target display currency */
+  if (PORTFOLIO_CURRENCY === 'GBP') return gbp;
+  if (PORTFOLIO_CURRENCY === 'USD') return gbp * (rates.GBPUSD || 1.27);
+  if (PORTFOLIO_CURRENCY === 'EUR') return gbp * (rates.GBPEUR || 1.17);
+  return gbp;
+}
+
+/* ════════════════════════════════════════
    LOAD / SAVE
 ════════════════════════════════════════ */
 function loadPortfolio() {
   try { PORTFOLIO.holdings = JSON.parse(localStorage.getItem('ss_portfolio') || '[]'); }
   catch(e) { PORTFOLIO.holdings = []; }
+  loadPortfolioCurrency();
 }
 
 function savePortfolio() {
@@ -58,9 +116,21 @@ function removeHolding(sym) {
 }
 
 function removeHoldingAndRender(sym) {
+  if (!confirm('Remove ' + sym + ' from your portfolio?')) return;
   removeHolding(sym);
   renderPortfolio();
   showToast('Removed ' + sym + ' from portfolio', 'info');
+}
+
+function updateHolding(sym, newShares, newAvgCost) {
+  newShares  = parseFloat(newShares);
+  newAvgCost = parseFloat(newAvgCost);
+  if (!(newShares > 0) || !(newAvgCost > 0)) return false;
+  PORTFOLIO.holdings.forEach(function(h) {
+    if (h.sym === sym) { h.shares = newShares; h.avgCost = newAvgCost; }
+  });
+  savePortfolio();
+  return true;
 }
 
 /* ════════════════════════════════════════
@@ -86,8 +156,9 @@ function getPortfolioSummary() {
   updatePortfolioPrices({});
   var totalCost = 0, totalValue = 0;
   PORTFOLIO.holdings.forEach(function(h) {
-    totalCost  += h.avgCost * h.shares;
-    totalValue += h.currentValue || (h.avgCost * h.shares);
+    /* Convert each holding's native-currency values to the display base currency */
+    totalCost  += toPortfolioBase(h.avgCost * h.shares, h.sym);
+    totalValue += toPortfolioBase(h.currentValue || (h.avgCost * h.shares), h.sym);
   });
   return {
     totalCost:   totalCost,
@@ -258,30 +329,73 @@ function renderPortfolioSummary() {
     return;
   }
 
-  var s = getPortfolioSummary();
-  var isUp = s.totalPnl >= 0;
+  var s      = getPortfolioSummary();
+  var isUp   = s.totalPnl >= 0;
   var pnlCls = isUp ? 'up' : 'dn';
-  var sign = isUp ? '+' : '';
+  var sign   = isUp ? '+' : '';
+  var cs     = getPortfolioCurrencySymbol();
 
-  el.innerHTML =
+  /* Currency toggle buttons */
+  var toggleHtml =
+    '<div class="curr-toggle-row">' +
+      '<span class="curr-toggle-lbl"><i class="fas fa-globe"></i> Display in:</span>' +
+      '<div class="curr-toggle">' +
+        '<button onclick="setPortfolioCurrency(\'GBP\')" class="curr-btn' + (PORTFOLIO_CURRENCY==='GBP'?' curr-on':'') + '">£ GBP</button>' +
+        '<button onclick="setPortfolioCurrency(\'USD\')" class="curr-btn' + (PORTFOLIO_CURRENCY==='USD'?' curr-on':'') + '">$ USD</button>' +
+        '<button onclick="setPortfolioCurrency(\'EUR\')" class="curr-btn' + (PORTFOLIO_CURRENCY==='EUR'?' curr-on':'') + '">€ EUR</button>' +
+      '</div>' +
+    '</div>';
+
+  el.innerHTML = toggleHtml +
     '<div class="port-sum-grid">' +
       '<div class="port-sum-item">' +
         '<div class="port-sum-lbl"><i class="fas fa-wallet"></i> Total Value</div>' +
-        '<div class="port-sum-val">$' + fmtNum(s.totalValue, 2) + '</div>' +
+        '<div class="port-sum-val">' + cs + fmtNum(s.totalValue, 2) + '</div>' +
       '</div>' +
       '<div class="port-sum-item">' +
         '<div class="port-sum-lbl"><i class="fas fa-coins"></i> Total Cost</div>' +
-        '<div class="port-sum-val">$' + fmtNum(s.totalCost, 2) + '</div>' +
+        '<div class="port-sum-val">' + cs + fmtNum(s.totalCost, 2) + '</div>' +
       '</div>' +
       '<div class="port-sum-item ' + pnlCls + '">' +
         '<div class="port-sum-lbl"><i class="fas fa-chart-line"></i> Total P&L</div>' +
-        '<div class="port-sum-val ' + pnlCls + '">' + sign + '$' + fmtNum(Math.abs(s.totalPnl), 2) + '</div>' +
+        '<div class="port-sum-val ' + pnlCls + '">' + sign + cs + fmtNum(Math.abs(s.totalPnl), 2) + '</div>' +
       '</div>' +
       '<div class="port-sum-item ' + pnlCls + '">' +
         '<div class="port-sum-lbl"><i class="fas fa-percent"></i> Return</div>' +
         '<div class="port-sum-val ' + pnlCls + '">' + sign + s.totalPnlPct.toFixed(2) + '%</div>' +
       '</div>' +
     '</div>';
+}
+
+/* Track which holding is being edited (sym or null) */
+var _portEditingSym = null;
+
+function editHolding(sym) {
+  _portEditingSym = sym;
+  renderPortfolioHoldings();
+  /* Focus the first field after render */
+  setTimeout(function() {
+    var f = document.getElementById('pedit-shares-' + sym);
+    if (f) f.focus();
+  }, 60);
+}
+
+function cancelHoldingEdit() {
+  _portEditingSym = null;
+  renderPortfolioHoldings();
+}
+
+function saveHoldingEdit(sym) {
+  var sharesEl = document.getElementById('pedit-shares-' + sym);
+  var costEl   = document.getElementById('pedit-cost-'   + sym);
+  if (!sharesEl || !costEl) return;
+  if (updateHolding(sym, sharesEl.value, costEl.value)) {
+    _portEditingSym = null;
+    renderPortfolio();
+    showToast(sym + ' updated', 'ok');
+  } else {
+    showToast('Invalid — shares and price must be positive numbers', 'err');
+  }
 }
 
 function renderPortfolioHoldings() {
@@ -298,6 +412,8 @@ function renderPortfolioHoldings() {
 
   updatePortfolioPrices({});
 
+  var cs = getPortfolioCurrencySymbol(); /* display base currency symbol */
+
   el.innerHTML = PORTFOLIO.holdings.map(function(h) {
     var risk    = getHoldingRisk(h.sym);
     var stock   = STOCKS && STOCKS[h.sym];
@@ -307,7 +423,33 @@ function renderPortfolioHoldings() {
     var isUp    = pnl >= 0;
     var cv      = h.currentValue || (h.avgCost * h.shares);
     var actIcon = { buy:'fa-arrow-up', hold:'fa-minus', watch:'fa-eye', avoid:'fa-ban' };
+    var nativeSym = getCurrencySymbol(h.sym); /* native price symbol */
 
+    /* Values converted to the user's chosen display currency */
+    var cvBase  = toPortfolioBase(cv,  h.sym);
+    var pnlBase = toPortfolioBase(Math.abs(pnl), h.sym);
+
+    /* ── EDIT MODE ── */
+    if (_portEditingSym === h.sym) {
+      return '<div class="port-item ' + action + ' port-item-editing">' +
+        '<div class="port-edit-header">' +
+          '<div class="sc-ico ' + action + '-ico">' + h.sym.slice(0,3) + '</div>' +
+          '<div><div class="sc-sym">' + h.sym + '</div><div class="sc-name">' + (h.name || h.sym) + '</div></div>' +
+        '</div>' +
+        '<div class="port-edit-fields">' +
+          '<label class="port-edit-lbl">Shares</label>' +
+          '<input id="pedit-shares-' + h.sym + '" class="port-edit-inp" type="number" min="0.000001" step="any" value="' + h.shares + '">' +
+          '<label class="port-edit-lbl">Avg Cost (' + nativeSym + ' native)</label>' +
+          '<input id="pedit-cost-' + h.sym + '" class="port-edit-inp" type="number" min="0.000001" step="any" value="' + h.avgCost.toFixed(4) + '">' +
+        '</div>' +
+        '<div class="port-edit-actions">' +
+          '<button class="port-edit-save" onclick="saveHoldingEdit(\'' + h.sym + '\')"><i class="fas fa-check"></i> Save</button>' +
+          '<button class="port-edit-cancel" onclick="cancelHoldingEdit()"><i class="fas fa-times"></i> Cancel</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    /* ── NORMAL VIEW ── */
     return '<div class="port-item ' + action + '">' +
       '<div class="port-item-top">' +
         '<div class="port-item-left" onclick="openStockDetail(\'' + h.sym + '\')">' +
@@ -318,15 +460,15 @@ function renderPortfolioHoldings() {
           '</div>' +
         '</div>' +
         '<div class="port-item-right">' +
-          '<div class="sc-price">' + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '') + fmtNum(h.currentPrice || h.avgCost, 2) + '</div>' +
+          '<div class="sc-price">' + nativeSym + fmtNum(h.currentPrice || h.avgCost, 2) + '</div>' +
           '<div class="sc-chg ' + (isUp ? 'up' : 'dn') + '">' + (isUp ? '+' : '') + pnlPct.toFixed(2) + '%</div>' +
         '</div>' +
       '</div>' +
       '<div class="port-stats-row">' +
         '<div class="port-stat"><span class="port-sl">Shares</span><span class="port-sv">' + h.shares + '</span></div>' +
-        '<div class="port-stat"><span class="port-sl">Avg Cost</span><span class="port-sv">' + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '$') + h.avgCost.toFixed(2) + '</span></div>' +
-        '<div class="port-stat"><span class="port-sl">Mkt Value</span><span class="port-sv">' + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '$') + fmtNum(cv, 2) + '</span></div>' +
-        '<div class="port-stat"><span class="port-sl">P&L</span><span class="port-sv ' + (isUp?'up':'dn') + '">' + (isUp?'+':'') + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '$') + fmtNum(Math.abs(pnl), 2) + '</span></div>' +
+        '<div class="port-stat"><span class="port-sl">Avg Cost</span><span class="port-sv">' + nativeSym + h.avgCost.toFixed(2) + '</span></div>' +
+        '<div class="port-stat"><span class="port-sl">Mkt Value (' + PORTFOLIO_CURRENCY + ')</span><span class="port-sv">' + cs + fmtNum(cvBase, 2) + '</span></div>' +
+        '<div class="port-stat"><span class="port-sl">P&L (' + PORTFOLIO_CURRENCY + ')</span><span class="port-sv ' + (isUp?'up':'dn') + '">' + (isUp?'+':'') + cs + fmtNum(pnlBase, 2) + '</span></div>' +
       '</div>' +
       '<div class="port-risk-row">' +
         '<span class="port-risk-lbl"><i class="fas fa-globe"></i> Geo-Risk</span>' +
@@ -334,7 +476,10 @@ function renderPortfolioHoldings() {
         '<span class="port-risk-val" style="color:var(--' + risk.color + ')">' + risk.label + '</span>' +
       '</div>' +
       (stock ? '<span class="pill ' + action + '"><i class="fas ' + (actIcon[action] || 'fa-minus') + '"></i> AI: ' + (stock.action || 'HOLD') + '</span>' : '') +
-      '<button class="port-remove-btn" onclick="removeHoldingAndRender(\'' + h.sym + '\')" title="Remove"><i class="fas fa-trash-alt"></i></button>' +
+      '<div class="port-action-btns">' +
+        '<button class="port-edit-btn" onclick="editHolding(\'' + h.sym + '\')" title="Edit holding"><i class="fas fa-pencil-alt"></i> Edit</button>' +
+        '<button class="port-remove-btn" onclick="removeHoldingAndRender(\'' + h.sym + '\')" title="Delete holding"><i class="fas fa-trash-alt"></i></button>' +
+      '</div>' +
     '</div>';
   }).join('');
 }
