@@ -148,17 +148,15 @@ function doRefresh() {
 function liveRefresh() {
   return Promise.all([
     fetchIndices().then(function(data) {
-      if (data) updateMarketCards(data);
-      updateTimestamp();
-      updateTicker(data);
-    }).catch(function() {}),
+      if (data) { updateMarketCards(data); updateTimestamp(true); updateTicker(data); }
+      else       { updateTimestamp(false); }
+    }).catch(function() { updateTimestamp(false); }),
     fetchFearGreed().then(function(fg) {
       if (fg) updateGauge(fg.score, fg.label);
     }).catch(function() {}),
     fetchStockPrices(Object.keys(STOCKS)).then(function(prices) {
       if (prices) {
         updateStockPrices(prices);
-        // Also update portfolio with live prices
         try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
         try { updateAlertBadge(); } catch(e) {}
       }
@@ -193,9 +191,17 @@ function updateMarketStatus() {
 }
 setInterval(updateMarketStatus, 60000);
 
-function updateTimestamp() {
+function updateTimestamp(isLive) {
   var el = document.getElementById('txt-updated');
-  if (el) el.textContent = 'Updated ' + new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+  if (!el) return;
+  var t = new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+  if (isLive) {
+    el.textContent = '● LIVE ' + t;
+    el.style.color = '#22c55e';
+  } else {
+    el.textContent = '○ Offline – estimated prices';
+    el.style.color = '#f59e0b';
+  }
 }
 
 /* ════════════════════════════════════════

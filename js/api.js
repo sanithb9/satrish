@@ -31,25 +31,46 @@ function safeFetch(url, timeout) {
   });
 }
 
-/* ── CORS proxy URLs to try in order ── */
+/* ── CORS proxy list — each entry specifies whether to encode the URL ── */
 var PROXIES = [
-  'https://corsproxy.io/?',
-  'https://api.allorigins.win/get?url='
+  /* corsproxy.io expects raw (non-encoded) URL after the ? */
+  { prefix: 'https://corsproxy.io/?',              encode: false },
+  /* allorigins expects encoded URL and wraps response in {contents} */
+  { prefix: 'https://api.allorigins.win/get?url=', encode: true  },
+  /* codetabs proxy — encoded URL */
+  { prefix: 'https://api.codetabs.com/v1/proxy?quest=', encode: true }
 ];
 
+/* Also try query2 subdomain as alternative to query1 for Yahoo Finance */
+var YF_BASE2 = 'https://query2.finance.yahoo.com/v7/finance/quote?symbols=';
+
 function proxyFetch(targetUrl) {
+  /* First try with query2 subdomain if this is a Yahoo Finance query1 URL */
+  var urls = [targetUrl];
+  if (targetUrl.indexOf('query1.finance.yahoo.com') !== -1) {
+    urls.push(targetUrl.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com'));
+  }
+
   return new Promise(function(resolve) {
-    var idx = 0;
+    var proxyIdx = 0;
+    var urlIdx   = 0;
+
     function tryNext() {
-      if (idx >= PROXIES.length) { resolve(null); return; }
-      var proxy = PROXIES[idx++];
-      var url = proxy + encodeURIComponent(targetUrl);
-      safeFetch(url, 6000).then(function(data) {
+      if (proxyIdx >= PROXIES.length) { resolve(null); return; }
+      var proxy   = PROXIES[proxyIdx];
+      var baseUrl = urls[urlIdx % urls.length];
+      urlIdx++;
+      /* Move to next proxy after we have tried all url variants for this proxy */
+      if (urlIdx % urls.length === 0) proxyIdx++;
+
+      var full = proxy.prefix + (proxy.encode ? encodeURIComponent(baseUrl) : baseUrl);
+      safeFetch(full, 8000).then(function(data) {
         if (!data) { tryNext(); return; }
-        /* allorigins wraps in {contents:...} */
-        if (data.contents) {
+        /* allorigins wraps response in {contents: "...json string..."} */
+        if (typeof data.contents === 'string') {
           try { data = JSON.parse(data.contents); } catch(e) { tryNext(); return; }
         }
+        if (!data) { tryNext(); return; }
         resolve(data);
       });
     }
