@@ -146,6 +146,9 @@ function doRefresh() {
 }
 
 function liveRefresh() {
+  /* Fetch FX rates alongside everything else */
+  if (typeof fetchFXRates === 'function') fetchFXRates().catch(function() {});
+
   return Promise.all([
     fetchIndices().then(function(data) {
       if (data) { updateMarketCards(data); updateTimestamp(true); updateTicker(data); }
@@ -155,12 +158,19 @@ function liveRefresh() {
       if (fg) updateGauge(fg.score, fg.label);
     }).catch(function() {}),
     (function() {
-      /* Collect all symbols: built-in database + any portfolio holdings not already in STOCKS */
+      /* Collect all symbols: STOCKS + portfolio holdings + watchlist */
       var syms = Object.keys(STOCKS);
       try {
         if (PORTFOLIO && PORTFOLIO.holdings) {
           PORTFOLIO.holdings.forEach(function(h) {
             if (h.sym && syms.indexOf(h.sym) === -1) syms.push(h.sym);
+          });
+        }
+      } catch(e) {}
+      try {
+        if (APP && APP.watchlist) {
+          APP.watchlist.forEach(function(s) {
+            if (s && syms.indexOf(s) === -1) syms.push(s);
           });
         }
       } catch(e) {}
@@ -775,8 +785,17 @@ function timeAgo(hours) {
 
 /* ════════════════════════════════════════
    RENDER WATCHLIST
+   _wlPrices is a persistent cache so prices
+   accumulate across all individual fetches.
 ════════════════════════════════════════ */
+var _wlPrices = {};
+
 function renderWatchlist(prices) {
+  /* Merge any new prices into the persistent cache */
+  if (prices) {
+    Object.keys(prices).forEach(function(k) { _wlPrices[k] = prices[k]; });
+  }
+
   var items = document.getElementById('wl-items');
   var empty = document.getElementById('wl-empty');
   if (!items) return;
@@ -789,24 +808,40 @@ function renderWatchlist(prices) {
   items.querySelectorAll('.wl-item').forEach(function(e) { e.remove(); });
   APP.watchlist.forEach(function(sym) {
     try {
-      var live  = (prices && prices[sym]) || {};
-      var known = STOCKS[sym] || {};
-      var price = live.price || known.price || null;
-      var chg   = live.chg   !== undefined ? live.chg : (known.chg || 0);
-      var prStr = price ? getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
-      var chStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      /* Look up price: live cache first, then STOCKS fallback */
+      var cached = _wlPrices[sym] || {};
+      var known  = STOCKS[sym] || {};
+      var price  = cached.price || known.price || null;
+      var chg    = cached.chg !== undefined ? cached.chg : (known.chg || 0);
+      var name   = known.name || (STOCK_LOOKUP && STOCK_LOOKUP.filter(function(s){return s.sym===sym;})[0] || {}).name || sym;
+
+      var prStr, chStr;
+      if (price) {
+        prStr = getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+      } else {
+        prStr = '<span style="color:var(--t3);font-size:11px">fetching…</span>';
+      }
+      chStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+
       var div = document.createElement('div');
       div.className = 'wl-item';
       div.onclick = function() { openStockDetail(sym); };
       div.innerHTML =
         '<div class="wl-sym">' + sym + '</div>' +
-        '<div class="wl-name">' + (known.name || sym) + '</div>' +
+        '<div class="wl-name">' + name + '</div>' +
         '<div style="text-align:right">' +
           '<div class="wl-pr">' + prStr + '</div>' +
           '<div class="wl-ch ' + (chg >= 0 ? 'up' : 'dn') + '">' + chStr + '</div>' +
         '</div>' +
         '<button class="wl-rm" onclick="event.stopPropagation();removeWatchlist(\'' + sym + '\')"><i class="fas fa-times"></i></button>';
       items.appendChild(div);
+
+      /* If no price in cache yet, fetch it individually */
+      if (!cached.price) {
+        fetchStockPrices([sym]).then(function(p) {
+          if (p && p[sym]) renderWatchlist(p);
+        }).catch(function() {});
+      }
     } catch(e) {}
   });
 }
