@@ -9,14 +9,14 @@
    Shown immediately, replaced by live data
 ────────────────────────────────────────── */
 const FALLBACK = {
-  SP500:  { price: 5950,   chg: +0.42 },
-  NASDAQ: { price: 19280,  chg: +0.61 },
-  DOW:    { price: 44200,  chg: +0.18 },
-  FTSE:   { price: 8720,   chg: -0.12 },
-  GOLD:   { price: 3020,   chg: +0.85 },
-  OIL:    { price: 71.20,  chg: -1.10 },
-  VIX:    { price: 18.4,   chg: +3.20 },
-  BTC:    { price: 87500,  chg: +2.40 }
+  SP500:  { price: 5861,   chg: -1.59 },
+  NASDAQ: { price: 18544,  chg: -2.78 },
+  DOW:    { price: 43239,  chg: -0.45 },
+  FTSE:   { price: 8810,   chg: +0.36 },
+  GOLD:   { price: 2868,   chg: +1.05 },
+  OIL:    { price: 69.76,  chg: -0.82 },
+  VIX:    { price: 22.3,   chg: +16.0 },
+  BTC:    { price: 78500,  chg: -7.20 }
 };
 
 /* ──────────────────────────────────────────
@@ -41,7 +41,7 @@ const SECTORS = [
 const STOCKS = {
   NVDA: {
     name: 'NVIDIA Corp', sector: 'Technology', exchange: 'NASDAQ',
-    price: 875, chg: +2.1,
+    price: 177, chg: -3.8,
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 91,
     target12m: '+35%', targetLong: '+180%', pe: 35, growth: '+120% YoY',
@@ -55,7 +55,7 @@ const STOCKS = {
   },
   MSFT: {
     name: 'Microsoft Corp', sector: 'Technology', exchange: 'NASDAQ',
-    price: 415, chg: +0.8,
+    price: 388, chg: -1.2,
     action: 'BUY', risk: 'Low', horizon: 'both',
     confidence: 88,
     target12m: '+22%', targetLong: '+95%', pe: 32, growth: '+16% YoY',
@@ -69,7 +69,7 @@ const STOCKS = {
   },
   AAPL: {
     name: 'Apple Inc', sector: 'Technology', exchange: 'NASDAQ',
-    price: 218, chg: -0.5,
+    price: 237, chg: -0.8,
     action: 'HOLD', risk: 'Medium', horizon: 'long',
     confidence: 65,
     target12m: '+8%', targetLong: '+55%', pe: 28, growth: '+4% YoY',
@@ -83,7 +83,7 @@ const STOCKS = {
   },
   GOOGL: {
     name: 'Alphabet / Google', sector: 'Technology', exchange: 'NASDAQ',
-    price: 175, chg: +1.2,
+    price: 197, chg: -1.5,
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 80,
     target12m: '+25%', targetLong: '+110%', pe: 22, growth: '+13% YoY',
@@ -97,7 +97,7 @@ const STOCKS = {
   },
   META: {
     name: 'Meta Platforms', sector: 'Technology', exchange: 'NASDAQ',
-    price: 595, chg: +1.8,
+    price: 638, chg: -2.1,
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 83,
     target12m: '+28%', targetLong: '+90%', pe: 25, growth: '+19% YoY',
@@ -111,7 +111,7 @@ const STOCKS = {
   },
   LMT: {
     name: 'Lockheed Martin', sector: 'Defence', exchange: 'NYSE',
-    price: 510, chg: +0.6,
+    price: 497, chg: +0.3,
     action: 'BUY', risk: 'Low', horizon: 'both',
     confidence: 92,
     target12m: '+20%', targetLong: '+70%', pe: 18, growth: '+5% YoY',
@@ -125,7 +125,7 @@ const STOCKS = {
   },
   RTX: {
     name: 'RTX Corp (Raytheon)', sector: 'Defence', exchange: 'NYSE',
-    price: 125, chg: +0.9,
+    price: 202, chg: +0.9,
     action: 'BUY', risk: 'Low', horizon: 'both',
     confidence: 89,
     target12m: '+18%', targetLong: '+65%', pe: 20, growth: '+7% YoY',
@@ -139,7 +139,7 @@ const STOCKS = {
   },
   NOC: {
     name: 'Northrop Grumman', sector: 'Defence', exchange: 'NYSE',
-    price: 480, chg: +0.4,
+    price: 503, chg: +0.2,
     action: 'BUY', risk: 'Low', horizon: 'long',
     confidence: 85,
     target12m: '+15%', targetLong: '+60%', pe: 17, growth: '+4% YoY',
@@ -153,7 +153,7 @@ const STOCKS = {
   },
   LLY: {
     name: 'Eli Lilly', sector: 'Healthcare', exchange: 'NYSE',
-    price: 880, chg: +1.4,
+    price: 798, chg: -0.9,
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 86,
     target12m: '+25%', targetLong: '+100%', pe: 50, growth: '+45% YoY',
@@ -167,7 +167,7 @@ const STOCKS = {
   },
   NVO: {
     name: 'Novo Nordisk (ADR)', sector: 'Healthcare', exchange: 'NYSE',
-    price: 105, chg: +0.7,
+    price: 89, chg: -1.4,
     action: 'BUY', risk: 'Medium', horizon: 'long',
     confidence: 82,
     target12m: '+20%', targetLong: '+85%', pe: 28, growth: '+24% YoY',
@@ -181,7 +181,7 @@ const STOCKS = {
   },
   JPM: {
     name: 'JPMorgan Chase', sector: 'Financials', exchange: 'NYSE',
-    price: 245, chg: +0.5,
+    price: 258, chg: -0.7,
     action: 'BUY', risk: 'Low', horizon: 'long',
     confidence: 79,
     target12m: '+15%', targetLong: '+55%', pe: 13, growth: '+7% YoY',
@@ -195,7 +195,7 @@ const STOCKS = {
   },
   NEE: {
     name: 'NextEra Energy', sector: 'Utilities', exchange: 'NYSE',
-    price: 72, chg: -0.3,
+    price: 74, chg: -0.5,
     action: 'BUY', risk: 'Low', horizon: 'long',
     confidence: 76,
     target12m: '+18%', targetLong: '+70%', pe: 22, growth: '+8% YoY',
@@ -209,7 +209,7 @@ const STOCKS = {
   },
   COST: {
     name: 'Costco Wholesale', sector: 'Consumer', exchange: 'NASDAQ',
-    price: 925, chg: +0.4,
+    price: 1048, chg: -0.6,
     action: 'HOLD', risk: 'Low', horizon: 'long',
     confidence: 74,
     target12m: '+12%', targetLong: '+55%', pe: 52, growth: '+6% YoY',
@@ -223,7 +223,7 @@ const STOCKS = {
   },
   WMT: {
     name: 'Walmart Inc', sector: 'Consumer', exchange: 'NYSE',
-    price: 95, chg: +0.6,
+    price: 103, chg: -0.4,
     action: 'BUY', risk: 'Low', horizon: 'long',
     confidence: 78,
     target12m: '+14%', targetLong: '+55%', pe: 34, growth: '+5% YoY',
@@ -237,7 +237,7 @@ const STOCKS = {
   },
   AMD: {
     name: 'Advanced Micro Devices', sector: 'Technology', exchange: 'NASDAQ',
-    price: 185, chg: +1.5,
+    price: 112, chg: -2.4,
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 79,
     target12m: '+30%', targetLong: '+130%', pe: 40, growth: '+22% YoY',
@@ -251,7 +251,7 @@ const STOCKS = {
   },
   GS: {
     name: 'Goldman Sachs', sector: 'Financials', exchange: 'NYSE',
-    price: 540, chg: +0.7,
+    price: 598, chg: -0.8,
     action: 'BUY', risk: 'Medium', horizon: 'long',
     confidence: 74,
     target12m: '+18%', targetLong: '+60%', pe: 14, growth: '+12% YoY',
@@ -265,7 +265,7 @@ const STOCKS = {
   },
   XOM: {
     name: 'Exxon Mobil', sector: 'Energy', exchange: 'NYSE',
-    price: 110, chg: -0.8,
+    price: 115, chg: -1.1,
     action: 'HOLD', risk: 'Medium', horizon: 'long',
     confidence: 60,
     target12m: '+5%', targetLong: '+30%', pe: 14, growth: '-2% YoY',
@@ -280,7 +280,7 @@ const STOCKS = {
   /* ── AVOID ── */
   INTC: {
     name: 'Intel Corp', sector: 'Technology', exchange: 'NASDAQ',
-    price: 22, chg: -1.2,
+    price: 21, chg: -1.8,
     action: 'AVOID', risk: 'High', horizon: 'none',
     confidence: 25,
     target12m: '-15%', targetLong: 'Uncertain', pe: 35, growth: '-8% YoY',
@@ -294,7 +294,7 @@ const STOCKS = {
   },
   BABA: {
     name: 'Alibaba Group (ADR)', sector: 'Technology', exchange: 'NYSE',
-    price: 85, chg: -0.6,
+    price: 115, chg: -0.9,
     action: 'AVOID', risk: 'High', horizon: 'none',
     confidence: 20,
     target12m: '-10%', targetLong: 'Uncertain', pe: 10, growth: '+5% YoY',
@@ -308,7 +308,7 @@ const STOCKS = {
   },
   TSLA: {
     name: 'Tesla Inc', sector: 'Technology', exchange: 'NASDAQ',
-    price: 280, chg: +0.3,
+    price: 322, chg: -5.8,
     action: 'WATCH', risk: 'High', horizon: 'long',
     confidence: 52,
     target12m: '+10%', targetLong: '+120%', pe: 55, growth: '-1% YoY',
@@ -324,7 +324,7 @@ const STOCKS = {
   /* ── SMALL & MID CAP OPPORTUNITIES ── */
   PLTR: {
     name: 'Palantir Technologies', sector: 'Technology / AI Defence', exchange: 'NYSE',
-    price: 78, chg: +3.2, cap: 'mid',
+    price: 88, chg: -4.5, cap: 'mid',
     action: 'BUY', risk: 'High', horizon: 'both',
     confidence: 84,
     target12m: '+55%', targetLong: '+250%', pe: 280, growth: '+36% YoY',
@@ -338,7 +338,7 @@ const STOCKS = {
   },
   CRWD: {
     name: 'CrowdStrike Holdings', sector: 'Cybersecurity', exchange: 'NASDAQ',
-    price: 365, chg: +1.8, cap: 'mid',
+    price: 392, chg: -1.4, cap: 'mid',
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 83,
     target12m: '+35%', targetLong: '+150%', pe: 95, growth: '+32% YoY',
@@ -352,7 +352,7 @@ const STOCKS = {
   },
   ARM: {
     name: 'ARM Holdings', sector: 'Semiconductors', exchange: 'NASDAQ',
-    price: 145, chg: +2.4, cap: 'mid',
+    price: 156, chg: -3.2, cap: 'mid',
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 81,
     target12m: '+40%', targetLong: '+180%', pe: 110, growth: '+25% YoY',
@@ -366,7 +366,7 @@ const STOCKS = {
   },
   VST: {
     name: 'Vistra Energy', sector: 'Energy / Nuclear', exchange: 'NYSE',
-    price: 165, chg: +2.1, cap: 'mid',
+    price: 148, chg: -1.8, cap: 'mid',
     action: 'BUY', risk: 'Medium', horizon: 'both',
     confidence: 87,
     target12m: '+45%', targetLong: '+200%', pe: 22, growth: '+85% YoY',
@@ -380,7 +380,7 @@ const STOCKS = {
   },
   CEG: {
     name: 'Constellation Energy', sector: 'Energy / Nuclear', exchange: 'NASDAQ',
-    price: 280, chg: +1.5, cap: 'mid',
+    price: 275, chg: -0.9, cap: 'mid',
     action: 'BUY', risk: 'Medium', horizon: 'long',
     confidence: 85,
     target12m: '+35%', targetLong: '+130%', pe: 28, growth: '+60% YoY',
@@ -394,7 +394,7 @@ const STOCKS = {
   },
   MP: {
     name: 'MP Materials (Rare Earth)', sector: 'Materials / Rare Earth', exchange: 'NYSE',
-    price: 18, chg: +1.9, cap: 'small',
+    price: 16, chg: -2.1, cap: 'small',
     action: 'BUY', risk: 'High', horizon: 'long',
     confidence: 74,
     target12m: '+60%', targetLong: '+300%', pe: 45, growth: '+15% YoY',
@@ -408,7 +408,7 @@ const STOCKS = {
   },
   ALB: {
     name: 'Albemarle Corp (Lithium)', sector: 'Materials / Lithium', exchange: 'NYSE',
-    price: 82, chg: -0.8, cap: 'mid',
+    price: 74, chg: -1.5, cap: 'mid',
     action: 'WATCH', risk: 'High', horizon: 'long',
     confidence: 62,
     target12m: '+25%', targetLong: '+200%', pe: 35, growth: '-30% YoY',
@@ -422,7 +422,7 @@ const STOCKS = {
   },
   SMCI: {
     name: 'Super Micro Computer', sector: 'Technology / AI Servers', exchange: 'NASDAQ',
-    price: 42, chg: +3.1, cap: 'small',
+    price: 39, chg: -2.8, cap: 'small',
     action: 'WATCH', risk: 'High', horizon: 'short',
     confidence: 63,
     target12m: '+80%', targetLong: 'Uncertain', pe: 14, growth: '+38% YoY',
@@ -436,7 +436,7 @@ const STOCKS = {
   },
   COIN: {
     name: 'Coinbase Global', sector: 'Financials / Crypto', exchange: 'NASDAQ',
-    price: 285, chg: +4.2, cap: 'mid',
+    price: 292, chg: -8.5, cap: 'mid',
     action: 'WATCH', risk: 'High', horizon: 'both',
     confidence: 66,
     target12m: '+50%', targetLong: '+200%', pe: 35, growth: '+75% YoY',
@@ -450,7 +450,7 @@ const STOCKS = {
   },
   PANW: {
     name: 'Palo Alto Networks', sector: 'Cybersecurity', exchange: 'NASDAQ',
-    price: 195, chg: +1.2, cap: 'mid',
+    price: 198, chg: -0.8, cap: 'mid',
     action: 'BUY', risk: 'Medium', horizon: 'long',
     confidence: 80,
     target12m: '+28%', targetLong: '+110%', pe: 55, growth: '+14% YoY',
@@ -464,7 +464,7 @@ const STOCKS = {
   },
   ASML: {
     name: 'ASML Holding (ADR)', sector: 'Semiconductors', exchange: 'NASDAQ',
-    price: 680, chg: +0.9, cap: 'large',
+    price: 718, chg: -1.2, cap: 'large',
     action: 'BUY', risk: 'Low', horizon: 'long',
     confidence: 88,
     target12m: '+30%', targetLong: '+120%', pe: 32, growth: '+18% YoY',
@@ -478,7 +478,7 @@ const STOCKS = {
   },
   TSM: {
     name: 'Taiwan Semiconductor (ADR)', sector: 'Semiconductors', exchange: 'NYSE',
-    price: 195, chg: +1.6, cap: 'large',
+    price: 208, chg: -2.0, cap: 'large',
     action: 'BUY', risk: 'High', horizon: 'long',
     confidence: 78,
     target12m: '+35%', targetLong: '+130%', pe: 25, growth: '+34% YoY',
@@ -492,7 +492,7 @@ const STOCKS = {
   },
   MELI: {
     name: 'MercadoLibre', sector: 'Technology / E-Commerce', exchange: 'NASDAQ',
-    price: 2150, chg: +1.4, cap: 'large',
+    price: 2085, chg: -1.8, cap: 'large',
     action: 'BUY', risk: 'Medium', horizon: 'long',
     confidence: 81,
     target12m: '+28%', targetLong: '+120%', pe: 60, growth: '+42% YoY',
@@ -506,7 +506,7 @@ const STOCKS = {
   },
   SHOP: {
     name: 'Shopify Inc', sector: 'Technology / E-Commerce', exchange: 'NYSE',
-    price: 115, chg: +2.1, cap: 'mid',
+    price: 124, chg: -1.6, cap: 'mid',
     action: 'BUY', risk: 'Medium', horizon: 'long',
     confidence: 77,
     target12m: '+35%', targetLong: '+150%', pe: 75, growth: '+25% YoY',
@@ -520,7 +520,7 @@ const STOCKS = {
   },
   RXRX: {
     name: 'Recursion Pharmaceuticals', sector: 'Healthcare / AI Drug Discovery', exchange: 'NASDAQ',
-    price: 8, chg: +2.5, cap: 'small',
+    price: 5, chg: -3.2, cap: 'small',
     action: 'WATCH', risk: 'High', horizon: 'long',
     confidence: 55,
     target12m: '+80%', targetLong: '+500%', pe: null, growth: '+35% YoY',
@@ -534,7 +534,7 @@ const STOCKS = {
   },
   ENPH: {
     name: 'Enphase Energy', sector: 'Clean Energy / Solar', exchange: 'NASDAQ',
-    price: 68, chg: -1.2, cap: 'mid',
+    price: 62, chg: -2.4, cap: 'mid',
     action: 'WATCH', risk: 'High', horizon: 'long',
     confidence: 58,
     target12m: '+40%', targetLong: '+200%', pe: 22, growth: '-35% YoY',
@@ -548,7 +548,7 @@ const STOCKS = {
   },
   AFRM: {
     name: 'Affirm Holdings (BNPL)', sector: 'Financials / FinTech', exchange: 'NASDAQ',
-    price: 52, chg: +3.4, cap: 'small',
+    price: 57, chg: -4.1, cap: 'small',
     action: 'WATCH', risk: 'High', horizon: 'long',
     confidence: 61,
     target12m: '+55%', targetLong: '+250%', pe: 42, growth: '+46% YoY',
@@ -562,7 +562,7 @@ const STOCKS = {
   },
   NU: {
     name: 'Nu Holdings (Nubank)', sector: 'Financials / FinTech', exchange: 'NYSE',
-    price: 14, chg: +2.2, cap: 'mid',
+    price: 15, chg: -1.9, cap: 'mid',
     action: 'BUY', risk: 'High', horizon: 'long',
     confidence: 76,
     target12m: '+45%', targetLong: '+250%', pe: 30, growth: '+58% YoY',
@@ -956,7 +956,7 @@ function buildRecommendations(riskLevel) {
   Object.keys(STOCKS).forEach(function(sym) {
     var s = STOCKS[sym];
 
-    // Base score from hardcoded confidence
+    // Base score from qualitative analysis
     var score = s.confidence;
 
     // Apply macro event adjustments
@@ -964,6 +964,15 @@ function buildRecommendations(riskLevel) {
       if (ev.affected_bull && ev.affected_bull.indexOf(sym) !== -1) score += (ev.score_bull || 5);
       if (ev.affected_bear && ev.affected_bear.indexOf(sym) !== -1) score += (ev.score_bear || -6);
     });
+
+    // Live price momentum signal — s.chg is updated with real-time day % change
+    // A stock moving strongly today is a meaningful short-term signal
+    if (typeof s.chg === 'number' && s.chg !== 0) {
+      if      (s.chg >  5) score += 6;   // strong positive momentum
+      else if (s.chg >  2) score += 3;   // mild positive momentum
+      else if (s.chg < -5) score -= 8;   // strong sell-off — reduce conviction
+      else if (s.chg < -2) score -= 4;   // mild negative momentum
+    }
 
     // Risk tolerance adjustment
     if (risk === 'low' && s.risk === 'High') score -= 20;

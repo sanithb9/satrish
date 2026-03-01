@@ -148,21 +148,43 @@ function doRefresh() {
 function liveRefresh() {
   return Promise.all([
     fetchIndices().then(function(data) {
-      if (data) updateMarketCards(data);
-      updateTimestamp();
-      updateTicker(data);
-    }).catch(function() {}),
+      if (data) { updateMarketCards(data); updateTimestamp(true); updateTicker(data); }
+      else       { updateTimestamp(false); }
+    }).catch(function() { updateTimestamp(false); }),
     fetchFearGreed().then(function(fg) {
       if (fg) updateGauge(fg.score, fg.label);
     }).catch(function() {}),
-    fetchStockPrices(Object.keys(STOCKS)).then(function(prices) {
-      if (prices) {
-        updateStockPrices(prices);
-        // Also update portfolio with live prices
-        try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
-        try { updateAlertBadge(); } catch(e) {}
-      }
-    }).catch(function() {})
+    (function() {
+      /* Collect all symbols: built-in database + any portfolio holdings not already in STOCKS */
+      var syms = Object.keys(STOCKS);
+      try {
+        if (PORTFOLIO && PORTFOLIO.holdings) {
+          PORTFOLIO.holdings.forEach(function(h) {
+            if (h.sym && syms.indexOf(h.sym) === -1) syms.push(h.sym);
+          });
+        }
+      } catch(e) {}
+      return fetchStockPrices(syms).then(function(prices) {
+        if (prices) {
+          /* 1. Push live prices into STOCKS objects so all downstream code uses real data */
+          updateStockPrices(prices);
+
+          /* 2. Rebuild recommendations with live price momentum now baked in */
+          try { APP.recs = buildRecommendations(APP.settings.risk || 'medium'); } catch(e) {}
+
+          /* 3. Re-render ALL analysis sections with live data */
+          try { renderTopPicks(); }       catch(e) {}  /* Home: top 3 picks */
+          try { renderPicks(); }          catch(e) {}  /* Picks page: immediate/short/long/avoid */
+          try { renderWatchlist(prices); } catch(e) {} /* Watchlist with live prices */
+
+          /* 4. Re-render portfolio with live prices */
+          try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
+
+          /* 5. Refresh alert badge (uses generatePortfolioAlerts with live prices) */
+          try { updateAlertBadge(); } catch(e) {}
+        }
+      }).catch(function() {});
+    })()
   ]).catch(function() {});
 }
 
@@ -193,9 +215,17 @@ function updateMarketStatus() {
 }
 setInterval(updateMarketStatus, 60000);
 
-function updateTimestamp() {
+function updateTimestamp(isLive) {
   var el = document.getElementById('txt-updated');
-  if (el) el.textContent = 'Updated ' + new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+  if (!el) return;
+  var t = new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+  if (isLive) {
+    el.textContent = '● LIVE ' + t;
+    el.style.color = '#22c55e';
+  } else {
+    el.textContent = '○ Offline – estimated prices';
+    el.style.color = '#f59e0b';
+  }
 }
 
 /* ════════════════════════════════════════
@@ -927,6 +957,11 @@ function goPage(page) {
   if (page === 'watchlist')  renderWatchlist();
   if (page === 'portfolio')  renderPortfolio();
   if (page === 'alerts')     updateAlertBadge();
+  /* Picks page: always rebuild recs with latest prices before rendering */
+  if (page === 'picks') {
+    try { APP.recs = buildRecommendations(APP.settings.risk || 'medium'); } catch(e) {}
+    try { renderPicks(); } catch(e) {}
+  }
   hideTooltip();
 }
 
