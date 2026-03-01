@@ -481,7 +481,7 @@ function updateStockPrices(prices) {
       /* Update any currently visible price elements */
       var prEl = document.querySelector('[data-price-sym="' + sym + '"]');
       var chEl = document.querySelector('[data-chg-sym="' + sym + '"]');
-      if (prEl && p.price) prEl.textContent = '$' + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+      if (prEl && p.price) prEl.textContent = getCurrencySymbol(sym) + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
       if (chEl) {
         chEl.textContent = (p.chg >= 0 ? '+' : '') + p.chg.toFixed(2) + '%';
         chEl.className = 'sc-chg ' + (p.chg >= 0 ? 'up' : 'dn');
@@ -590,7 +590,7 @@ function buildImmediateCard(r, type) {
   var urgency = isBuy ? r.urgencyBuy : r.urgencySell;
   var urgLabel= urgency >= 60 ? 'CRITICAL' : urgency >= 45 ? 'URGENT' : 'HIGH';
   var urgCls  = urgency >= 60 ? 'critical' : urgency >= 45 ? 'urgent' : 'high';
-  var price   = r.price ? '$' + r.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+  var price   = r.price ? getCurrencySymbol(r.sym) + r.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
   var chg     = (r.chg || 0);
   var capBadge= r.cap ? '<span class="cap-badge ' + r.cap + '">' + r.cap + '</span>' : '';
   var showT212 = APP.settings.t212 !== false;
@@ -652,7 +652,7 @@ function buildStockCard(r, compact) {
   var riskW  = r.risk === 'Low' ? '25' : r.risk === 'High' ? '85' : '55';
   var riskCls= (r.risk || 'Medium').toLowerCase();
   var isAvoid= (act === 'avoid');
-  var prStr  = price ? '$' + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+  var prStr  = price ? getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
   var chStr  = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
   var showT212 = APP.settings.t212 !== false;
 
@@ -793,7 +793,7 @@ function renderWatchlist(prices) {
       var known = STOCKS[sym] || {};
       var price = live.price || known.price || null;
       var chg   = live.chg   !== undefined ? live.chg : (known.chg || 0);
-      var prStr = price ? '$' + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+      var prStr = price ? getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
       var chStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
       var div = document.createElement('div');
       div.className = 'wl-item';
@@ -881,7 +881,7 @@ function openStockDetail(sym) {
       '</div>' +
     '</div>' +
     '<div class="sd-price-row">' +
-      '<div class="sd-price">' + (price ? '$' + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</div>' +
+      '<div class="sd-price">' + (price ? getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</div>' +
       '<div class="sd-chg ' + (chg >= 0 ? 'up' : 'dn') + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% today</div>' +
     '</div>' +
     '<div class="sd-stats">' +
@@ -919,7 +919,7 @@ function addWatchlistFromAC(sym, livePrice) {
     saveWatchlist();
     if (inp) inp.value = '';
     renderWatchlist();
-    showToast('Added ' + sym + (livePrice && livePrice.price ? ' @ $' + livePrice.price.toFixed(2) : ''), 'ok');
+    showToast('Added ' + sym + (livePrice && livePrice.price ? ' @ ' + getCurrencySymbol(sym) + livePrice.price.toFixed(2) : ''), 'ok');
     /* Re-render with live price if we already have it, otherwise fetch */
     if (livePrice && livePrice.price) {
       var priceMap = {}; priceMap[sym] = livePrice;
