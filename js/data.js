@@ -1224,6 +1224,54 @@ const NEWS = [
     category: 'economic', direction: 'bear', age_h: 40,
     impact: 'Trade down effect benefits WMT and COST. Avoid discretionary retail (NKE, TGT, AMZN retail). JPM and GS watching consumer credit quality closely.',
     stocks: ['WMT', 'COST']
+  },
+  {
+    id: 11,
+    title: '🚨 US-Iran Military Escalation — Strait of Hormuz on Alert',
+    summary: 'US and Iranian forces have exchanged strikes following a series of regional provocations. The US has deployed two carrier strike groups to the Persian Gulf. Iran has threatened to close the Strait of Hormuz — through which 20% of the world\'s oil supply flows. Brent crude surged 8% overnight. Global markets are pricing in a risk premium not seen since the Gulf War.',
+    category: 'political', direction: 'bear', age_h: 1,
+    impact: 'CRITICAL geopolitical event. Oil ($XOM, $CVX, $SHEL, $BP) surging on supply shock fears. Defence stocks ($LMT, $RTX, $NOC, $BA.L, $RR.L) are strong BUYs — US military activity = massive orders. Gold and silver ETFs (IGLN.L, ISLN.L, RMAP.L) surging as safe-haven demand spikes. Airlines ($DAL, $AAL, $IAG.L, $EZJ.L) collapsing — higher fuel costs + potential route closures. Cybersecurity ($CRWD, $PANW) in demand — Iran is a top-tier cyber threat actor. Avoid retail and consumer discretionary during this uncertainty.',
+    stocks: ['XOM', 'CVX', 'SHEL', 'BP', 'LMT', 'RTX', 'NOC', 'BA.L', 'RR.L', 'CRWD', 'PANW', 'DAL', 'AAL', 'IAG.L', 'EZJ.L']
+  },
+  {
+    id: 12,
+    title: '⚡ Oil Surges 8% — Iran Strait of Hormuz Closure Threat',
+    summary: 'Brent crude jumped from $74 to $80/barrel overnight after Iran\'s Revolutionary Guard threatened to mine the Strait of Hormuz in response to US strikes. 20 million barrels of oil per day pass through the strait. Saudi Arabia and UAE have pledged to offset supply disruption but markets remain unconvinced. UK petrol prices expected to rise sharply.',
+    category: 'energy', direction: 'bull', age_h: 2,
+    impact: 'Extremely bullish for oil majors: XOM, CVX, SHEL, BP all benefit directly from higher oil prices. UK drivers and airlines hit hard by fuel cost spike. Shell and BP trade in London — SHEL.L and BP.L should see significant share price gains. Positive for gold and precious metals as safe havens. OPEC+ spare capacity is the key variable to watch.',
+    stocks: ['XOM', 'CVX', 'SHEL', 'BP', 'SHEL.L', 'BP.L', 'DAL', 'AAL', 'EZJ.L', 'IAG.L']
+  },
+  {
+    id: 13,
+    title: '🛡️ Defence Stocks Rally — US-Iran War Drives Record Orders',
+    summary: 'US Defence Secretary confirmed that Lockheed Martin, RTX, Northrop Grumman and General Dynamics have been asked to accelerate production of precision munitions, air defence systems, and naval assets. UK MOD also placed emergency orders with BAE Systems and Rolls-Royce (jet engine servicing for deployed aircraft). The UK\'s defence posture raised to SEVERE.',
+    category: 'political', direction: 'bull', age_h: 3,
+    impact: 'STRONG BUY on the entire Western defence sector. LMT (HIMARS, F-35, PAC-3 missiles), RTX (Patriot air defence, Raytheon missiles), NOC (B-21 stealth bomber, electronic warfare), BA.L (Eurofighter, Type 26 submarines), RR.L (aircraft engine maintenance surge). UK investors: BA. and RR. available on LSE. Defence ETFs like ITA on US markets. This is a structural multi-year tailwind compounding on top of the NATO 3% spending commitment.',
+    stocks: ['LMT', 'RTX', 'NOC', 'GD', 'BA.L', 'RR.L', 'CRWD', 'PANW']
+  },
+  {
+    id: 14,
+    title: '🥇 Gold & Silver Spike — Investors Flee to Safe Havens',
+    summary: 'Gold hit $3,200/oz and silver surged past $36/oz as investors rushed to safe-haven assets following the US-Iran escalation. UK-listed physical gold ETFs (IGLN.L, RMAP.L, PHAU.L) and silver ETCs (ISLN.L, PHAG.L) saw record volume. The Royal Mint reported a surge in demand for its physical gold ETC. Bitcoin also gained 6% as a parallel safe-haven trade.',
+    category: 'political', direction: 'bull', age_h: 4,
+    impact: 'BUY physical precious metal ETCs for UK investors: RMAP.L (Royal Mint Gold), IGLN.L (iShares Physical Gold), ISLN.L (iShares Physical Silver), PHAU.L (WisdomTree Gold), PHAG.L (WisdomTree Silver). Also gold miners: NEM, GOLD (Barrick). US-listed: IAU, GLD, SLV, SGOL, SIVR. This is a classic wartime safe-haven rotation and may persist for weeks.',
+    stocks: ['NEM', 'GOLD', 'IAU', 'RMAP.L', 'IGLN.L', 'ISLN.L', 'PHAU.L', 'PHAG.L']
+  },
+  {
+    id: 15,
+    title: '✈️ Airlines Crash — Fuel Costs Surge + Route Disruptions',
+    summary: 'Global airline stocks fell 8-15% as the US-Iran conflict drove oil prices sharply higher and raised concerns about Middle East airspace closures. IAG (British Airways parent), easyJet, and Ryanair are heavily exposed to fuel cost spikes. Transatlantic and Asian routes that overfly conflict zones face potential rerouting, adding hours and fuel cost.',
+    category: 'political', direction: 'bear', age_h: 5,
+    impact: 'AVOID airlines near-term. IAG.L (British Airways, Iberia), EZJ.L (easyJet), RYA.L (Ryanair), TUI.L (leisure), DAL (Delta), AAL (American Airlines), UAL (United) all face significant headwinds. Every $1/barrel rise in oil costs the global airline industry ~$1.6bn per year. UK investors should monitor IATA guidance on airspace closures. If conflict resolves quickly, airlines snap back hard — high risk/reward.',
+    stocks: ['IAG.L', 'EZJ.L', 'DAL', 'AAL', 'UAL', 'TUI.L']
+  },
+  {
+    id: 16,
+    title: '🔐 Cyberattacks Surge — Iran Targets US & UK Infrastructure',
+    summary: 'US Cybersecurity agency CISA and the UK National Cyber Security Centre issued joint CRITICAL alerts warning of sophisticated Iranian state-sponsored cyberattacks targeting energy infrastructure, financial systems, and government networks. Iran\'s cyber capabilities (Charming Kitten, APT33, APT34) are rated among the world\'s top five. Several US energy company networks have already been probed.',
+    category: 'tech', direction: 'bull', age_h: 6,
+    impact: 'STRONG BUY on cybersecurity: CrowdStrike (CRWD), Palo Alto Networks (PANW), Fortinet (FTNT), Zscaler (ZS), SentinelOne (S). UK defence tech (QINETIQ, L3Harris/LHX) also benefits. Every major government and energy company will accelerate their cybersecurity spending in response. L&G Cyber Security ETF (CYBG.L) on LSE gives direct exposure for UK investors without picking individual winners.',
+    stocks: ['CRWD', 'PANW', 'FTNT', 'ZS', 'S', 'CYBR', 'LHX', 'CYBG.L']
   }
 ];
 

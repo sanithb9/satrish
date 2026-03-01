@@ -318,15 +318,15 @@ function renderPortfolioHoldings() {
           '</div>' +
         '</div>' +
         '<div class="port-item-right">' +
-          '<div class="sc-price">$' + fmtNum(h.currentPrice || h.avgCost, 2) + '</div>' +
+          '<div class="sc-price">' + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '') + fmtNum(h.currentPrice || h.avgCost, 2) + '</div>' +
           '<div class="sc-chg ' + (isUp ? 'up' : 'dn') + '">' + (isUp ? '+' : '') + pnlPct.toFixed(2) + '%</div>' +
         '</div>' +
       '</div>' +
       '<div class="port-stats-row">' +
         '<div class="port-stat"><span class="port-sl">Shares</span><span class="port-sv">' + h.shares + '</span></div>' +
-        '<div class="port-stat"><span class="port-sl">Avg Cost</span><span class="port-sv">$' + h.avgCost.toFixed(2) + '</span></div>' +
-        '<div class="port-stat"><span class="port-sl">Mkt Value</span><span class="port-sv">$' + fmtNum(cv, 2) + '</span></div>' +
-        '<div class="port-stat"><span class="port-sl">P&L</span><span class="port-sv ' + (isUp?'up':'dn') + '">' + (isUp?'+':'') + '$' + fmtNum(Math.abs(pnl), 2) + '</span></div>' +
+        '<div class="port-stat"><span class="port-sl">Avg Cost</span><span class="port-sv">' + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '$') + h.avgCost.toFixed(2) + '</span></div>' +
+        '<div class="port-stat"><span class="port-sl">Mkt Value</span><span class="port-sv">' + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '$') + fmtNum(cv, 2) + '</span></div>' +
+        '<div class="port-stat"><span class="port-sl">P&L</span><span class="port-sv ' + (isUp?'up':'dn') + '">' + (isUp?'+':'') + (typeof getCurrencySymbol === 'function' ? getCurrencySymbol(h.sym) : '$') + fmtNum(Math.abs(pnl), 2) + '</span></div>' +
       '</div>' +
       '<div class="port-risk-row">' +
         '<span class="port-risk-lbl"><i class="fas fa-globe"></i> Geo-Risk</span>' +
