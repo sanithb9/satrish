@@ -1119,14 +1119,14 @@ const MACRO_EVENTS = [
   },
   {
     id: 'oil_supply',
-    title: 'OPEC+ Considers Production Increase',
+    title: 'OPEC+ Supply Offset by Middle East War Risk Premium',
     category: 'energy',
-    direction: 'bear',
-    severity: 'medium',
-    impact: 'Oil price risk to downside. XOM, CVX under pressure near-term. Airlines (DAL, AAL) benefit from lower jet fuel costs. Transition stocks (NEE) relatively positive.',
-    affected_bull: ['NEE'],
-    affected_bear: ['XOM'],
-    score_bull: +2, score_bear: -6
+    direction: 'bull',
+    severity: 'high',
+    impact: 'Strait of Hormuz closure risk adds $15-25/barrel war premium. Despite OPEC+ supply talk, geopolitical risk is dominating. Oil majors (XOM, CVX, SHEL, BP) surging. Airlines crushed by high jet fuel costs.',
+    affected_bull: ['XOM', 'CVX', 'SHEL', 'BP'],
+    affected_bear: ['DAL', 'AAL', 'UAL', 'IAG.L', 'EZJ.L'],
+    score_bull: +8, score_bear: -12
   },
   {
     id: 'green_energy',
@@ -1138,6 +1138,17 @@ const MACRO_EVENTS = [
     affected_bull: ['NEE'],
     affected_bear: [],
     score_bull: +3
+  },
+  {
+    id: 'mideast_war',
+    title: 'US-Iran Military Conflict — Middle East War Escalation',
+    category: 'political',
+    direction: 'bear',
+    severity: 'critical',
+    impact: 'Active US-Iran military conflict. Strait of Hormuz closure risk threatening 20% of global oil supply. Oil surged 8%+. Defence stocks rallying hard. Airlines rerouting or grounding flights. Gold and precious metals at record highs as safe-haven demand spikes. Iranian cyber units targeting Western financial infrastructure.',
+    affected_bull: ['XOM', 'CVX', 'SHEL', 'BP', 'LMT', 'RTX', 'NOC', 'GD', 'BA.L', 'RR.L', 'CRWD', 'PANW', 'FTNT', 'ZS', 'NEM', 'GOLD', 'RMAP.L', 'IGLN.L', 'ISLN.L', 'PHAU.L', 'PHAG.L'],
+    affected_bear: ['DAL', 'AAL', 'UAL', 'IAG.L', 'EZJ.L', 'TUI.L', 'AAPL', 'TSLA'],
+    score_bull: +18, score_bear: -20
   }
 ];
 

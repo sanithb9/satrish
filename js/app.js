@@ -41,10 +41,10 @@ document.addEventListener('DOMContentLoaded', function() {
     try { renderCascades(); }            catch(e) {}
     try { liveRefresh(); }               catch(e) {}
   }, 150);
-  // Auto-refresh every 5 minutes
+  // Auto-refresh every 90 seconds
   APP.liveTimer = setInterval(function() {
     try { liveRefresh(); } catch(e) {}
-  }, 5 * 60 * 1000);
+  }, 90 * 1000);
   // Close tooltip on outside click
   document.addEventListener('click', function(e) {
     var popup = document.getElementById('tooltip-popup');
@@ -225,11 +225,14 @@ function updateMarketStatus() {
 }
 setInterval(updateMarketStatus, 60000);
 
+var _lastRefreshTime = null;
+
 function updateTimestamp(isLive) {
   var el = document.getElementById('txt-updated');
   if (!el) return;
   var t = new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
   if (isLive) {
+    _lastRefreshTime = Date.now();
     el.textContent = '● LIVE ' + t;
     el.style.color = '#22c55e';
   } else {
@@ -237,6 +240,23 @@ function updateTimestamp(isLive) {
     el.style.color = '#f59e0b';
   }
 }
+
+/* Update "X seconds ago" counter every 10 seconds */
+setInterval(function() {
+  if (!_lastRefreshTime) return;
+  var el = document.getElementById('txt-updated');
+  if (!el || el.style.color !== '#22c55e') return;
+  var ago = Math.round((Date.now() - _lastRefreshTime) / 1000);
+  var t = new Date(_lastRefreshTime).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+  if (ago < 10) {
+    el.textContent = '● LIVE just now';
+  } else if (ago < 90) {
+    el.textContent = '● LIVE ' + t + ' (' + ago + 's ago)';
+  } else {
+    el.textContent = '○ ' + t + ' (refreshing…)';
+    el.style.color = '#f59e0b';
+  }
+}, 10000);
 
 /* ════════════════════════════════════════
    RENDER HOME
@@ -1015,6 +1035,10 @@ function switchTab(btn) {
   btn.classList.add('on');
   var panel = document.getElementById('tab-' + tab);
   if (panel) panel.classList.add('on');
+  /* Force a live refresh when switching to data-heavy tabs */
+  if (tab === 'portfolio' || tab === 'watchlist' || tab === 'news') {
+    try { liveRefresh(); } catch(e) {}
+  }
 }
 
 /* ════════════════════════════════════════

@@ -31,14 +31,18 @@ function safeFetch(url, timeout) {
   });
 }
 
-/* ── CORS proxy list — each entry specifies whether to encode the URL ── */
+/* ── CORS proxy list — ordered by reliability ── */
 var PROXIES = [
-  /* corsproxy.io expects raw (non-encoded) URL after the ? */
-  { prefix: 'https://corsproxy.io/?',              encode: false },
-  /* allorigins expects encoded URL and wraps response in {contents} */
-  { prefix: 'https://api.allorigins.win/get?url=', encode: true  },
-  /* codetabs proxy — encoded URL */
-  { prefix: 'https://api.codetabs.com/v1/proxy?quest=', encode: true }
+  /* 1. corsproxy.io — fast, no encoding */
+  { prefix: 'https://corsproxy.io/?',                    encode: false },
+  /* 2. allorigins — wraps response in {contents} */
+  { prefix: 'https://api.allorigins.win/get?url=',       encode: true  },
+  /* 3. thingproxy — reliable fallback */
+  { prefix: 'https://thingproxy.freeboard.io/fetch/',    encode: false },
+  /* 4. codetabs proxy */
+  { prefix: 'https://api.codetabs.com/v1/proxy?quest=',  encode: true  },
+  /* 5. corsproxy.org alternative */
+  { prefix: 'https://corsproxy.org/?',                   encode: false }
 ];
 
 /* Also try query2 subdomain as alternative to query1 for Yahoo Finance */
@@ -117,21 +121,68 @@ function fetchIndices() {
 }
 
 /* ══════════════════════════════════════════════
-   STOCK PRICES (batch Yahoo Finance)
+   STOCK PRICES — chunked batch (max 25/request)
+   Merges results from all chunks into one object.
 ══════════════════════════════════════════════ */
+var PRICE_FIELDS = 'regularMarketPrice,regularMarketChangePercent,regularMarketTime';
+var _CHUNK_SIZE  = 25;
+
+function parseYFQuotes(data) {
+  if (!data || !data.quoteResponse || !data.quoteResponse.result) return null;
+  var result = {};
+  data.quoteResponse.result.forEach(function(q) {
+    if (!q.symbol) return;
+    result[q.symbol] = {
+      price: q.regularMarketPrice || 0,
+      chg:   q.regularMarketChangePercent || 0,
+      ts:    q.regularMarketTime ? new Date(q.regularMarketTime * 1000) : new Date()
+    };
+  });
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+function fetchChunk(syms) {
+  var symStr = syms.join(',');
+  /* Try query1 then query2 via every proxy */
+  var urls = [
+    YF_BASE  + symStr + '&fields=' + PRICE_FIELDS,
+    YF_BASE2 + symStr + '&fields=' + PRICE_FIELDS
+  ];
+  return new Promise(function(resolve) {
+    var pi = 0, ui = 0;
+    function next() {
+      if (pi >= PROXIES.length) { resolve(null); return; }
+      var proxy = PROXIES[pi];
+      var url   = urls[ui % urls.length];
+      ui++;
+      if (ui % urls.length === 0) pi++;
+      var full = proxy.prefix + (proxy.encode ? encodeURIComponent(url) : url);
+      safeFetch(full, 9000).then(function(data) {
+        if (!data) { next(); return; }
+        if (typeof data.contents === 'string') {
+          try { data = JSON.parse(data.contents); } catch(e) { next(); return; }
+        }
+        var parsed = parseYFQuotes(data);
+        if (parsed) { resolve(parsed); } else { next(); }
+      });
+    }
+    next();
+  });
+}
+
 function fetchStockPrices(symbols) {
   if (!symbols || symbols.length === 0) return Promise.resolve(null);
-  var url = YF_BASE + symbols.join(',') + '&fields=regularMarketPrice,regularMarketChangePercent';
-  return proxyFetch(url).then(function(data) {
-    if (!data || !data.quoteResponse || !data.quoteResponse.result) return null;
-    var result = {};
-    data.quoteResponse.result.forEach(function(q) {
-      result[q.symbol] = {
-        price: q.regularMarketPrice || 0,
-        chg: q.regularMarketChangePercent || 0
-      };
-    });
-    return Object.keys(result).length > 0 ? result : null;
+  /* Deduplicate */
+  var dedup = symbols.filter(function(s, i) { return s && symbols.indexOf(s) === i; });
+  /* Split into chunks */
+  var chunks = [];
+  for (var i = 0; i < dedup.length; i += _CHUNK_SIZE) {
+    chunks.push(dedup.slice(i, i + _CHUNK_SIZE));
+  }
+  return Promise.all(chunks.map(fetchChunk)).then(function(results) {
+    var merged = {};
+    results.forEach(function(r) { if (r) Object.assign(merged, r); });
+    return Object.keys(merged).length > 0 ? merged : null;
   }).catch(function() { return null; });
 }
 
