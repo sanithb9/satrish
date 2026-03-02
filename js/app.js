@@ -45,6 +45,10 @@ document.addEventListener('DOMContentLoaded', function() {
   APP.liveTimer = setInterval(function() {
     try { liveRefresh(); } catch(e) {}
   }, 90 * 1000);
+  // Fetch AI-powered news analysis from the backend (non-blocking)
+  setTimeout(function() {
+    try { fetchAIAnalysis(); } catch(e) {}
+  }, 800);
   // Close tooltip on outside click
   document.addEventListener('click', function(e) {
     var popup = document.getElementById('tooltip-popup');
@@ -1072,4 +1076,65 @@ function showToast(msg, type) {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function() { el.className = ''; }, 3000);
   } catch(e) {}
+}
+
+/* ════════════════════════════════════════
+   AI NEWS ANALYSIS (fetched from /api/analyze)
+════════════════════════════════════════ */
+
+/* Map Claude sentiment/urgency to the card format NEWS uses */
+function alertToNewsCard(alert, idx) {
+  var dir = alert.sentiment === 'POSITIVE' ? 'bull'
+          : alert.sentiment === 'NEGATIVE' ? 'bear'
+          : 'neutral';
+
+  /* Derive category from stock_or_sector text */
+  var ss  = (alert.stock_or_sector || '').toLowerCase();
+  var cat = ss.indexOf('tech') !== -1 || ss.indexOf('semi') !== -1 ? 'tech'
+          : ss.indexOf('energy') !== -1 || ss.indexOf('oil') !== -1 ? 'energy'
+          : ss.indexOf('earn') !== -1 || ss.indexOf('revenue') !== -1 ? 'earnings'
+          : ss.indexOf('polit') !== -1 || ss.indexOf('sanction') !== -1 || ss.indexOf('tariff') !== -1 ? 'political'
+          : 'economic';
+
+  /* Extract stock tickers — anything that looks like 1-5 uppercase letters */
+  var tickers = (alert.stock_or_sector || '').match(/\b[A-Z]{1,5}\b/g) || [];
+
+  return {
+    id:        'ai-' + idx,
+    title:     alert.source_headline || alert.stock_or_sector,
+    summary:   alert.reason,
+    category:  cat,
+    direction: dir,
+    age_h:     0,
+    impact:    alert.action + ': ' + alert.reason,
+    stocks:    tickers.slice(0, 5),
+    url:       alert.source_url || ''
+  };
+}
+
+function fetchAIAnalysis() {
+  fetch('/api/analyze')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !Array.isArray(data.alerts) || data.alerts.length === 0) return;
+
+      /* Prepend AI-generated cards to the NEWS array, replacing any previous AI cards */
+      var aiCards = data.alerts.map(alertToNewsCard);
+      var staticNews = NEWS.filter(function(n) {
+        return typeof n.id !== 'string' || n.id.indexOf('ai-') !== 0;
+      });
+      NEWS.length = 0;
+      aiCards.concat(staticNews).forEach(function(n) { NEWS.push(n); });
+
+      /* Update the AI headline banner with Claude's market summary */
+      if (data.market_summary) {
+        var el = document.getElementById('ai-headline');
+        if (el) el.textContent = data.market_summary;
+      }
+
+      /* Re-render the sections that show news */
+      try { renderEventAlerts(); } catch(e) {}
+      try { renderNews(APP.newsFilter); } catch(e) {}
+    })
+    .catch(function() { /* silently fail — static data already showing */ });
 }
