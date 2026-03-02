@@ -11,10 +11,15 @@ const { Resend }          = require('resend');
 
 const PORT = process.env.PORT || 3000;
 
-/* ─── 15-minute in-memory cache ─────────────────────────────────── */
+/* ─── In-memory cache ───────────────────────────────────────────── */
 var _cache   = null;
 var _cacheTs = 0;
 const CACHE_TTL = 15 * 60 * 1000;
+
+/* ─── Scheduler state ───────────────────────────────────────────── */
+var _lastChecked      = null;
+var _scheduleTimer    = null;
+var _scheduleInterval = 0; // minutes; 0 = off
 
 /* ─── MIME types ────────────────────────────────────────────────── */
 const MIME = {
@@ -130,6 +135,69 @@ async function sendUrgentAlertsEmail(toEmail, analysis) {
   return { sent: true, id: result.data && result.data.id };
 }
 
+/* ─── Scheduler ─────────────────────────────────────────────────── */
+async function scheduledCheck() {
+  console.log('[scheduler] running check...');
+  try {
+    var articles = await fetchLatestNews();
+    var analysis = await analyzeNews(articles);
+    _cache       = analysis;
+    _cacheTs     = Date.now();
+    _lastChecked = new Date();
+    console.log('[scheduler] done — ' + analysis.alerts.length + ' alerts, last checked ' + _lastChecked.toISOString());
+
+    /* Send email if ALERT_EMAIL is configured in .env */
+    var alertEmail = (process.env.ALERT_EMAIL || '').trim();
+    if (alertEmail) {
+      try {
+        var emailResult = await sendUrgentAlertsEmail(alertEmail, analysis);
+        console.log('[scheduler] email:', JSON.stringify(emailResult));
+      } catch (emailErr) {
+        console.error('[scheduler] email error:', emailErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[scheduler] error:', err.message);
+  }
+}
+
+function startScheduler(intervalMinutes) {
+  if (_scheduleTimer) {
+    clearInterval(_scheduleTimer);
+    _scheduleTimer = null;
+  }
+  _scheduleInterval = intervalMinutes || 0;
+  if (_scheduleInterval <= 0) {
+    console.log('[scheduler] disabled');
+    return;
+  }
+  console.log('[scheduler] running every ' + _scheduleInterval + ' min');
+  _scheduleTimer = setInterval(scheduledCheck, _scheduleInterval * 60 * 1000);
+}
+
+/* ─── GET /api/status ───────────────────────────────────────────── */
+function handleStatus(res) {
+  var urgentCount = _cache
+    ? _cache.alerts.filter(function(a) { return a.urgency === 'URGENT'; }).length
+    : 0;
+  sendJSON(res, 200, {
+    lastChecked:      _lastChecked ? _lastChecked.toISOString() : null,
+    urgentCount:      urgentCount,
+    scheduleInterval: _scheduleInterval
+  });
+}
+
+/* ─── POST /api/schedule ────────────────────────────────────────── */
+async function handleScheduleUpdate(req, res) {
+  var body     = await readBody(req);
+  var interval = parseInt(body.interval, 10);
+  if (isNaN(interval) || interval < 0) {
+    return sendJSON(res, 400, { error: 'interval must be a non-negative integer (minutes)' });
+  }
+  startScheduler(interval);
+  sendJSON(res, 200, { scheduleInterval: _scheduleInterval, active: _scheduleInterval > 0 });
+}
+
 /* ─── /api/analyze ──────────────────────────────────────────────── */
 async function handleAnalyze(res) {
   var now = Date.now();
@@ -193,7 +261,11 @@ async function handleCheckNews(req, res) {
     }
   }
 
-  sendJSON(res, 200, Object.assign({}, analysis, { email: emailResult }));
+  _lastChecked = new Date();
+  sendJSON(res, 200, Object.assign({}, analysis, {
+    email:       emailResult,
+    lastChecked: _lastChecked.toISOString()
+  }));
 }
 
 /* ─── HTTP server ───────────────────────────────────────────────── */
@@ -217,6 +289,12 @@ var server = http.createServer(function(req, res) {
   if (url === '/api/check-news' && req.method === 'POST') {
     return handleCheckNews(req, res);
   }
+  if (url === '/api/status' && req.method === 'GET') {
+    return handleStatus(res);
+  }
+  if (url === '/api/schedule' && req.method === 'POST') {
+    return handleScheduleUpdate(req, res);
+  }
 
   /* Static files */
   var filePath = (url === '/' || url === '/index.html')
@@ -235,4 +313,7 @@ var server = http.createServer(function(req, res) {
 
 server.listen(PORT, function() {
   console.log('StockSense AI running → http://localhost:' + PORT);
+  /* Start server-side scheduler from env (default 60 min) */
+  var envInterval = parseInt(process.env.SCHEDULE_INTERVAL || '60', 10);
+  startScheduler(isNaN(envInterval) ? 60 : envInterval);
 });
