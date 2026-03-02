@@ -461,6 +461,21 @@
           <label class="tgl"><input type="checkbox" id="setting-autorefresh" checked><span class="tgl-sl"></span></label>
         </div>
       </div>
+      <div class="set-sec">
+        <h3><i class="fas fa-envelope" style="color:var(--accent)"></i> Email Alerts</h3>
+        <p class="set-note">Receive an email whenever URGENT market-moving events are detected. Powered by Resend — requires <code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-size:10px">RESEND_API_KEY</code> in your server's .env.</p>
+        <div class="set-row">
+          <div>
+            <div class="tog-lbl">Enable email alerts</div>
+            <div class="tog-desc">Send email on URGENT alerts when you click "Check Latest News"</div>
+          </div>
+          <label class="tgl"><input type="checkbox" id="setting-emailalerts"><span class="tgl-sl"></span></label>
+        </div>
+        <div class="api-row" style="margin-top:11px">
+          <label>Alert email address</label>
+          <input type="email" id="setting-alertemail" placeholder="you@example.com" autocomplete="email">
+        </div>
+      </div>
       <button class="pri-btn" onclick="saveSettings()"><i class="fas fa-save"></i> Save Settings</button>
     </div>
   </div>
