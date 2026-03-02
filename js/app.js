@@ -80,6 +80,8 @@ function loadSettings() {
   try { if (APP.settings.newsapi)  document.getElementById('setting-newsapi').value = APP.settings.newsapi; } catch(e) {}
   try { if (APP.settings.t212 === false) document.getElementById('setting-t212').checked = false; } catch(e) {}
   try { if (APP.settings.autorefresh === false) document.getElementById('setting-autorefresh').checked = false; } catch(e) {}
+  try { if (APP.settings.emailalerts) document.getElementById('setting-emailalerts').checked = true; } catch(e) {}
+  try { if (APP.settings.alertemail) document.getElementById('setting-alertemail').value = APP.settings.alertemail; } catch(e) {}
 }
 
 function saveSettings() {
@@ -90,7 +92,9 @@ function saveSettings() {
       finnhub:     document.getElementById('setting-finnhub').value.trim(),
       newsapi:     document.getElementById('setting-newsapi').value.trim(),
       t212:        document.getElementById('setting-t212').checked,
-      autorefresh: document.getElementById('setting-autorefresh').checked
+      autorefresh: document.getElementById('setting-autorefresh').checked,
+      emailalerts: document.getElementById('setting-emailalerts').checked,
+      alertemail:  document.getElementById('setting-alertemail').value.trim()
     };
     localStorage.setItem('ss_settings', JSON.stringify(APP.settings));
     apiLoadKeys();
@@ -1183,19 +1187,29 @@ function checkLatestNews() {
   if (btn) btn.disabled = true;
   if (txt) txt.innerHTML = '<i class="fas fa-circle-notch" style="animation:spin 1s linear infinite;display:inline-block"></i>&nbsp; Scanning latest news...';
 
-  fetch('/api/analyze')
+  var emailAlerts = !!(APP.settings.emailalerts && APP.settings.alertemail);
+  var alertEmail  = APP.settings.alertemail || '';
+
+  fetch('/api/check-news', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ emailAlerts: emailAlerts, alertEmail: alertEmail })
+  })
     .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
     .then(function(data) {
       if (!data || !Array.isArray(data.alerts)) throw new Error('Invalid response');
       _applyAnalysis(data);
       renderNotifPanel(data);
       openModal('notif-modal');
+      /* Notify if email was sent */
+      if (data.email && data.email.sent) {
+        showToast('URGENT alert email sent to ' + alertEmail, 'ok');
+      }
     })
     .catch(function() {
-      showToast('Could not fetch news — try again shortly.', 'error');
+      showToast('Could not fetch news — try again shortly.');
     })
     .then(function() {
-      /* always re-enable button */
       if (btn) btn.disabled = false;
       if (txt) txt.innerHTML = '<i class="fas fa-satellite-dish"></i> Check Latest News';
     });
