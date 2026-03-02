@@ -1081,3 +1081,11 @@ body{
 .na-link:hover{text-decoration:underline}
 .na-link i{font-size:10px;flex-shrink:0;margin-top:2px}
 .na-headline{font-size:11px;color:var(--t3);font-style:italic}
+
+/* ── LAST CHECKED label (below scan button) ── */
+.last-checked{
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  font-size:11px;color:var(--t3);
+  margin-top:-14px;margin-bottom:16px;
+}
+.last-checked i{font-size:10px;color:var(--green)}

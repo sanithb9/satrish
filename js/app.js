@@ -12,7 +12,9 @@ var APP = {
   settings:      {},
   recs:          { short: [], long: [], avoid: [] },
   liveTimer:     null,
-  notifications: { alerts: [], market_summary: '' }
+  notifications: { alerts: [], market_summary: '' },
+  scheduleTimer: null,
+  lastChecked:   null   /* Date | null */
 };
 
 /* ── Tooltip state ── */
@@ -50,6 +52,21 @@ document.addEventListener('DOMContentLoaded', function() {
   setTimeout(function() {
     try { fetchAIAnalysis(); } catch(e) {}
   }, 800);
+  // Start client-side auto-check schedule
+  setTimeout(function() {
+    try { startClientSchedule(APP.settings.interval || 0); } catch(e) {}
+    // Sync last-checked time from server
+    try {
+      fetch('/api/status').then(function(r) { return r.ok ? r.json() : null; }).then(function(s) {
+        if (s && s.lastChecked) {
+          APP.lastChecked = new Date(s.lastChecked);
+          updateLastCheckedDisplay();
+        }
+      }).catch(function() {});
+    } catch(e) {}
+    // Refresh the display every minute
+    setInterval(function() { try { updateLastCheckedDisplay(); } catch(e) {} }, 60 * 1000);
+  }, 1200);
   // Close tooltip on outside click
   document.addEventListener('click', function(e) {
     var popup = document.getElementById('tooltip-popup');
@@ -82,6 +99,10 @@ function loadSettings() {
   try { if (APP.settings.autorefresh === false) document.getElementById('setting-autorefresh').checked = false; } catch(e) {}
   try { if (APP.settings.emailalerts) document.getElementById('setting-emailalerts').checked = true; } catch(e) {}
   try { if (APP.settings.alertemail) document.getElementById('setting-alertemail').value = APP.settings.alertemail; } catch(e) {}
+  try {
+    var iv = document.getElementById('setting-interval');
+    if (iv && APP.settings.interval !== undefined) iv.value = String(APP.settings.interval);
+  } catch(e) {}
 }
 
 function saveSettings() {
@@ -94,10 +115,17 @@ function saveSettings() {
       t212:        document.getElementById('setting-t212').checked,
       autorefresh: document.getElementById('setting-autorefresh').checked,
       emailalerts: document.getElementById('setting-emailalerts').checked,
-      alertemail:  document.getElementById('setting-alertemail').value.trim()
+      alertemail:  document.getElementById('setting-alertemail').value.trim(),
+      interval:    parseInt(document.getElementById('setting-interval').value, 10) || 0
     };
     localStorage.setItem('ss_settings', JSON.stringify(APP.settings));
     apiLoadKeys();
+    /* Restart client-side schedule and notify server */
+    startClientSchedule(APP.settings.interval);
+    fetch('/api/schedule', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ interval: APP.settings.interval })
+    }).catch(function() {});
     closeModal('settings-modal');
     showToast('Settings saved!', 'ok');
     initRecs();
@@ -1199,6 +1227,8 @@ function checkLatestNews() {
     .then(function(data) {
       if (!data || !Array.isArray(data.alerts)) throw new Error('Invalid response');
       _applyAnalysis(data);
+      APP.lastChecked = data.lastChecked ? new Date(data.lastChecked) : new Date();
+      updateLastCheckedDisplay();
       renderNotifPanel(data);
       openModal('notif-modal');
       /* Notify if email was sent */
@@ -1291,4 +1321,59 @@ function renderNotifPanel(data) {
   });
 
   body.innerHTML = html;
+}
+
+/* ════════════════════════════════════════
+   SCHEDULED AUTO-CHECK
+════════════════════════════════════════ */
+
+/* Runs silently in the background — no modal, just toast + state update */
+function silentNewsCheck() {
+  var emailAlerts = !!(APP.settings.emailalerts && APP.settings.alertemail);
+  var alertEmail  = APP.settings.alertemail || '';
+
+  fetch('/api/check-news', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ emailAlerts: emailAlerts, alertEmail: alertEmail })
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !Array.isArray(data.alerts)) return;
+      _applyAnalysis(data);
+      APP.lastChecked = data.lastChecked ? new Date(data.lastChecked) : new Date();
+      updateLastCheckedDisplay();
+
+      var urgentCount = data.alerts.filter(function(a) { return a.urgency === 'URGENT'; }).length;
+      var msg = urgentCount > 0
+        ? 'News updated \u2014 ' + urgentCount + ' URGENT alert' + (urgentCount !== 1 ? 's' : '')
+        : 'News updated \u2014 no urgent alerts';
+      showToast(msg, urgentCount > 0 ? 'warn' : 'ok');
+
+      if (data.email && data.email.sent) {
+        showToast('Alert email sent to ' + alertEmail, 'ok');
+      }
+    })
+    .catch(function() {}); /* silent — don't disrupt the user */
+}
+
+function startClientSchedule(intervalMinutes) {
+  if (APP.scheduleTimer) {
+    clearInterval(APP.scheduleTimer);
+    APP.scheduleTimer = null;
+  }
+  if (!intervalMinutes || intervalMinutes <= 0) return;
+  APP.scheduleTimer = setInterval(silentNewsCheck, intervalMinutes * 60 * 1000);
+}
+
+function updateLastCheckedDisplay() {
+  var wrap = document.getElementById('last-checked-wrap');
+  var txt  = document.getElementById('last-checked-txt');
+  if (!wrap || !txt) return;
+  if (!APP.lastChecked) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  var secs = Math.round((Date.now() - APP.lastChecked) / 1000);
+  if (secs < 60)        txt.textContent = 'Last checked: just now';
+  else if (secs < 3600) txt.textContent = 'Last checked: ' + Math.round(secs / 60) + ' min ago';
+  else                  txt.textContent = 'Last checked: ' + Math.round(secs / 3600) + 'h ago';
 }
