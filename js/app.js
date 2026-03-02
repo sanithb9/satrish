@@ -6,12 +6,13 @@
 
 /* ── APP STATE ── */
 var APP = {
-  page:       'home',
-  newsFilter: 'all',
-  watchlist:  [],
-  settings:   {},
-  recs:       { short: [], long: [], avoid: [] },
-  liveTimer:  null
+  page:          'home',
+  newsFilter:    'all',
+  watchlist:     [],
+  settings:      {},
+  recs:          { short: [], long: [], avoid: [] },
+  liveTimer:     null,
+  notifications: { alerts: [], market_summary: '' }
 };
 
 /* ── Tooltip state ── */
@@ -1112,29 +1113,168 @@ function alertToNewsCard(alert, idx) {
   };
 }
 
+/* Shared helper — updates state, NEWS array, bell badge, and re-renders */
+function _applyAnalysis(data) {
+  if (!data || !Array.isArray(data.alerts) || data.alerts.length === 0) return;
+
+  /* Persist in app state */
+  APP.notifications = data;
+
+  /* Update bell badge with URGENT count */
+  var urgentCount = data.alerts.filter(function(a) { return a.urgency === 'URGENT'; }).length;
+  updateBellBadge(urgentCount);
+
+  /* Prepend AI-generated cards to the NEWS array, replacing any previous AI cards */
+  var aiCards = data.alerts.map(alertToNewsCard);
+  var staticNews = NEWS.filter(function(n) {
+    return typeof n.id !== 'string' || n.id.indexOf('ai-') !== 0;
+  });
+  NEWS.length = 0;
+  aiCards.concat(staticNews).forEach(function(n) { NEWS.push(n); });
+
+  /* Update the AI headline banner with Claude's market summary */
+  if (data.market_summary) {
+    var el = document.getElementById('ai-headline');
+    if (el) el.textContent = data.market_summary;
+  }
+
+  /* Re-render the news sections */
+  try { renderEventAlerts(); } catch(e) {}
+  try { renderNews(APP.newsFilter); } catch(e) {}
+}
+
 function fetchAIAnalysis() {
   fetch('/api/analyze')
     .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(data) {
-      if (!data || !Array.isArray(data.alerts) || data.alerts.length === 0) return;
-
-      /* Prepend AI-generated cards to the NEWS array, replacing any previous AI cards */
-      var aiCards = data.alerts.map(alertToNewsCard);
-      var staticNews = NEWS.filter(function(n) {
-        return typeof n.id !== 'string' || n.id.indexOf('ai-') !== 0;
-      });
-      NEWS.length = 0;
-      aiCards.concat(staticNews).forEach(function(n) { NEWS.push(n); });
-
-      /* Update the AI headline banner with Claude's market summary */
-      if (data.market_summary) {
-        var el = document.getElementById('ai-headline');
-        if (el) el.textContent = data.market_summary;
-      }
-
-      /* Re-render the sections that show news */
-      try { renderEventAlerts(); } catch(e) {}
-      try { renderNews(APP.newsFilter); } catch(e) {}
-    })
+    .then(function(data) { _applyAnalysis(data); })
     .catch(function() { /* silently fail — static data already showing */ });
+}
+
+/* ════════════════════════════════════════
+   NOTIFICATION PANEL
+════════════════════════════════════════ */
+
+function updateBellBadge(count) {
+  var badge = document.getElementById('bell-badge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 9 ? '9+' : String(count);
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleNotifPanel() {
+  var modal = document.getElementById('notif-modal');
+  if (!modal) return;
+  if (modal.classList.contains('open')) {
+    closeModal('notif-modal');
+  } else {
+    renderNotifPanel(APP.notifications);
+    openModal('notif-modal');
+  }
+}
+
+/* "Check Latest News" button handler */
+function checkLatestNews() {
+  var btn = document.getElementById('scan-btn');
+  var txt = document.getElementById('scan-btn-text');
+  if (btn) btn.disabled = true;
+  if (txt) txt.innerHTML = '<i class="fas fa-circle-notch" style="animation:spin 1s linear infinite;display:inline-block"></i>&nbsp; Scanning latest news...';
+
+  fetch('/api/analyze')
+    .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+    .then(function(data) {
+      if (!data || !Array.isArray(data.alerts)) throw new Error('Invalid response');
+      _applyAnalysis(data);
+      renderNotifPanel(data);
+      openModal('notif-modal');
+    })
+    .catch(function() {
+      showToast('Could not fetch news — try again shortly.', 'error');
+    })
+    .then(function() {
+      /* always re-enable button */
+      if (btn) btn.disabled = false;
+      if (txt) txt.innerHTML = '<i class="fas fa-satellite-dish"></i> Check Latest News';
+    });
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+var URGENCY_ORDER = { URGENT: 0, SHORT_TERM: 1, LONG_TERM: 2 };
+
+function renderNotifPanel(data) {
+  var body = document.getElementById('notif-panel-body');
+  if (!body) return;
+
+  var alerts  = (data && Array.isArray(data.alerts))  ? data.alerts  : [];
+  var summary = (data && data.market_summary)          ? data.market_summary : '';
+
+  if (alerts.length === 0) {
+    body.innerHTML =
+      '<div class="empty">' +
+        '<i class="fas fa-satellite-dish"></i>' +
+        '<h3>No alerts yet</h3>' +
+        '<p>Tap "Check Latest News" on the dashboard to scan for market-moving events.</p>' +
+      '</div>';
+    return;
+  }
+
+  /* Sort: URGENT → SHORT_TERM → LONG_TERM */
+  var sorted = alerts.slice().sort(function(a, b) {
+    return (URGENCY_ORDER[a.urgency] || 2) - (URGENCY_ORDER[b.urgency] || 2);
+  });
+
+  var html = '';
+
+  /* Market summary */
+  if (summary) {
+    html +=
+      '<div class="notif-summary">' +
+        '<div class="notif-summary-lbl"><i class="fas fa-brain"></i> Market Summary</div>' +
+        '<p>' + escapeHtml(summary) + '</p>' +
+      '</div>';
+  }
+
+  html += '<div class="notif-count">' + sorted.length + ' alert' + (sorted.length !== 1 ? 's' : '') + ' found</div>';
+
+  sorted.forEach(function(alert) {
+    var urgency      = alert.urgency || 'LONG_TERM';
+    var urgencyIcon  = urgency === 'URGENT' ? '🔴' : urgency === 'SHORT_TERM' ? '🟡' : '🟢';
+    var urgencyLabel = urgency === 'URGENT' ? 'Urgent' : urgency === 'SHORT_TERM' ? 'Short Term' : 'Long Term';
+    var action       = (alert.action || 'WATCH').toUpperCase();
+    var actionClass  = action === 'BUY' ? 'buy' : action === 'SELL' ? 'sell' : action === 'HOLD' ? 'hold' : 'watch';
+    var itemClass    = urgency === 'URGENT' ? 'urgent' : urgency === 'SHORT_TERM' ? 'short-term' : 'long-term';
+
+    html +=
+      '<div class="na-item ' + itemClass + '">' +
+        '<div class="na-header">' +
+          '<span class="na-sector">' + escapeHtml(alert.stock_or_sector) + '</span>' +
+          '<span class="na-urgency">' + urgencyIcon + ' ' + urgencyLabel + '</span>' +
+        '</div>' +
+        '<div class="na-meta"><span class="pill ' + actionClass + '">' + action + '</span></div>' +
+        '<p class="na-reason">' + escapeHtml(alert.reason) + '</p>' +
+        (alert.source_headline
+          ? '<div class="na-source">' +
+              (alert.source_url
+                ? '<a href="' + escapeHtml(alert.source_url) + '" target="_blank" class="na-link">' +
+                    '<i class="fas fa-external-link-alt"></i> ' + escapeHtml(alert.source_headline) +
+                  '</a>'
+                : '<span class="na-headline">' + escapeHtml(alert.source_headline) + '</span>'
+              ) +
+            '</div>'
+          : ''
+        ) +
+      '</div>';
+  });
+
+  body.innerHTML = html;
 }
