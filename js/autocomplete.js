@@ -505,7 +505,48 @@ var STOCK_LOOKUP = [
   { sym:'MTCL',   name:'Mastech Holdings (IT services)',   ex:'NYSE'  },
   { sym:'SIFY',   name:'Sify Technologies (ADR)',          ex:'NASDAQ'},
   { sym:'AZRE',   name:'Azure Power Global (ADR)',         ex:'NYSE'  },
-  { sym:'REXI',   name:'Resource Capital Corp',            ex:'NYSE'  }
+  { sym:'REXI',   name:'Resource Capital Corp',            ex:'NYSE'  },
+
+  /* ── Hong Kong Stock Exchange (.HK) ── */
+  { sym:'0700.HK', name:'Tencent Holdings',                ex:'HKEX'  },
+  { sym:'9988.HK', name:'Alibaba Group Holding',           ex:'HKEX'  },
+  { sym:'3690.HK', name:'Meituan',                         ex:'HKEX'  },
+  { sym:'1810.HK', name:'Xiaomi Corporation',              ex:'HKEX'  },
+  { sym:'0005.HK', name:'HSBC Holdings',                   ex:'HKEX'  },
+  { sym:'0939.HK', name:'China Construction Bank',         ex:'HKEX'  },
+  { sym:'1398.HK', name:'Industrial & Commercial Bank of China', ex:'HKEX' },
+  { sym:'3988.HK', name:'Bank of China',                   ex:'HKEX'  },
+  { sym:'2318.HK', name:'Ping An Insurance Group',         ex:'HKEX'  },
+  { sym:'1299.HK', name:'AIA Group',                       ex:'HKEX'  },
+  { sym:'0941.HK', name:'China Mobile',                    ex:'HKEX'  },
+  { sym:'0388.HK', name:'Hong Kong Exchanges & Clearing',  ex:'HKEX'  },
+  { sym:'0011.HK', name:'Hang Seng Bank',                  ex:'HKEX'  },
+  { sym:'0992.HK', name:'Lenovo Group',                    ex:'HKEX'  },
+  { sym:'9999.HK', name:'NetEase Inc',                     ex:'HKEX'  },
+  { sym:'9618.HK', name:'JD.com Inc',                      ex:'HKEX'  },
+  { sym:'2020.HK', name:'ANTA Sports Products',            ex:'HKEX'  },
+  { sym:'0267.HK', name:'CITIC Limited',                   ex:'HKEX'  },
+  { sym:'1177.HK', name:'Sino Biopharmaceutical',          ex:'HKEX'  },
+
+  /* ── Shanghai Stock Exchange (.SS) ── */
+  { sym:'600519.SS', name:'Kweichow Moutai',               ex:'SSE'   },
+  { sym:'601318.SS', name:'Ping An Insurance (A)',         ex:'SSE'   },
+  { sym:'600036.SS', name:'China Merchants Bank (A)',      ex:'SSE'   },
+  { sym:'601012.SS', name:'LONGi Green Energy',            ex:'SSE'   },
+  { sym:'600900.SS', name:'China Yangtze Power',           ex:'SSE'   },
+  { sym:'601166.SS', name:'Industrial Bank',               ex:'SSE'   },
+  { sym:'600276.SS', name:'Jiangsu Hengrui Medicine',      ex:'SSE'   },
+  { sym:'600031.SS', name:'Sany Heavy Industry',           ex:'SSE'   },
+
+  /* ── Shenzhen Stock Exchange (.SZ) ── */
+  { sym:'000858.SZ', name:'Wuliangye Yibin',               ex:'SZSE'  },
+  { sym:'000333.SZ', name:'Midea Group',                   ex:'SZSE'  },
+  { sym:'002594.SZ', name:'BYD Company (A)',               ex:'SZSE'  },
+  { sym:'300750.SZ', name:'CATL (Contemporary Amperex Technology)', ex:'SZSE' },
+  { sym:'000651.SZ', name:'Gree Electric Appliances',      ex:'SZSE'  },
+  { sym:'300059.SZ', name:'East Money Information',        ex:'SZSE'  },
+  { sym:'002415.SZ', name:'Hikvision',                     ex:'SZSE'  },
+  { sym:'000002.SZ', name:'Vanke Co',                      ex:'SZSE'  }
 ];
 
 /* De-duplicate by symbol */
@@ -533,6 +574,10 @@ function getCurrencySymbol(sym, ex) {
       upper.endsWith('.LS') || upper.endsWith('.HE'))  return '€';
   /* Swiss */
   if (upper.endsWith('.SW')) return 'CHF ';
+  /* Hong Kong */
+  if (upper.endsWith('.HK')) return 'HK$';
+  /* China mainland — Shanghai (.SS) and Shenzhen (.SZ) */
+  if (upper.endsWith('.SS') || upper.endsWith('.SZ')) return '¥';
   /* Exchange fallback */
   if (ex) {
     var exU = ex.toUpperCase();
@@ -540,6 +585,9 @@ function getCurrencySymbol(sym, ex) {
     if (exU.indexOf('XETRA') !== -1 || exU.indexOf('EURONEXT') !== -1 ||
         exU.indexOf('BORSA') !== -1 || exU.indexOf('BME') !== -1) return '€';
     if (exU.indexOf('SIX') !== -1)   return 'CHF ';
+    if (exU.indexOf('HKEX') !== -1 || exU.indexOf('HONG KONG') !== -1) return 'HK$';
+    if (exU.indexOf('SHANGHAI') !== -1 || exU.indexOf('SHENZHEN') !== -1 ||
+        exU.indexOf('SSE') !== -1  || exU.indexOf('SZSE') !== -1) return '¥';
   }
   return '$';
 }

@@ -40,25 +40,30 @@ function getNativeCurrency(sym) {
       u.endsWith('.MC') || u.endsWith('.MI') || u.endsWith('.BR') ||
       u.endsWith('.LS') || u.endsWith('.HE')) return 'EUR';
   if (u.endsWith('.SW')) return 'CHF';
+  if (u.endsWith('.HK')) return 'HKD'; /* Hong Kong dollars */
+  if (u.endsWith('.SS') || u.endsWith('.SZ')) return 'CNY'; /* Chinese yuan */
   return 'USD';
 }
 
 /*
   Convert a value from a stock's native currency → GBP → target display currency.
-  FX_RATES from api.js: { GBPUSD: 1.27, GBPEUR: 1.17, GBPCHF: 1.14 }
+  FX_RATES from api.js: { GBPUSD, GBPEUR, GBPCHF, GBPHKD, GBPCNY }
 */
 function toPortfolioBase(value, sym) {
   if (!value || isNaN(value)) return 0;
-  var rates  = (typeof FX_RATES !== 'undefined') ? FX_RATES : { GBPUSD: 1.27, GBPEUR: 1.17, GBPCHF: 1.14 };
+  var rates  = (typeof FX_RATES !== 'undefined') ? FX_RATES
+             : { GBPUSD: 1.27, GBPEUR: 1.17, GBPCHF: 1.14, GBPHKD: 9.87, GBPCNY: 9.25 };
   var native = getNativeCurrency(sym);
 
   /* Step 1 — convert native → GBP */
   var gbp;
-  if      (native === 'GBp') gbp = value / 100;                   /* pence → pounds    */
+  if      (native === 'GBp') gbp = value / 100;                     /* pence → pounds      */
   else if (native === 'USD') gbp = value / (rates.GBPUSD || 1.27);
   else if (native === 'EUR') gbp = value / (rates.GBPEUR || 1.17);
   else if (native === 'CHF') gbp = value / (rates.GBPCHF || 1.14);
-  else                       gbp = value / (rates.GBPUSD || 1.27); /* assume USD        */
+  else if (native === 'HKD') gbp = value / (rates.GBPHKD || 9.87);  /* Hong Kong dollars   */
+  else if (native === 'CNY') gbp = value / (rates.GBPCNY || 9.25);  /* Chinese yuan        */
+  else                       gbp = value / (rates.GBPUSD || 1.27);  /* assume USD          */
 
   /* Step 2 — convert GBP → target display currency */
   if (PORTFOLIO_CURRENCY === 'GBP') return gbp;

@@ -287,7 +287,7 @@
       </button>
 
       <textarea id="port-ocr-result" class="port-textarea"
-        placeholder="Holdings will appear here after scan, or type manually:&#10;SYMBOL, SHARES, AVG_PRICE&#10;&#10;Example:&#10;NVDA, 10, 750&#10;AAPL, 25, 190&#10;LMT, 5, 480"></textarea>
+        placeholder="Holdings will appear here after scan, or type manually:&#10;SYMBOL, SHARES, AVG_PRICE&#10;&#10;Example (US):&#10;NVDA, 10, 750&#10;AAPL, 25, 190&#10;&#10;Example (UK):&#10;VOD.L, 500, 72&#10;HSBA.L, 200, 620&#10;&#10;Example (Europe):&#10;SAP.DE, 8, 165&#10;AIR.PA, 5, 140&#10;&#10;Example (Hong Kong):&#10;0700.HK, 100, 320&#10;9988.HK, 200, 72&#10;&#10;Example (China A-share):&#10;600519.SS, 2, 1700&#10;000858.SZ, 20, 155"></textarea>
 
       <button class="pri-btn" onclick="importHoldingsFromText()" style="margin-bottom:4px">
         <i class="fas fa-file-import"></i> Import Holdings
@@ -298,7 +298,7 @@
         <h4><i class="fas fa-keyboard"></i> Add Single Holding</h4>
         <div class="port-form-row" style="display:flex;gap:7px;margin-bottom:8px">
           <div class="ac-input-wrap" style="flex:2;min-width:120px;position:relative">
-            <input id="ph-sym" type="text" placeholder="Type stock name or symbol"
+            <input id="ph-sym" type="text" placeholder="e.g. AAPL · VOD.L · SAP.DE · 0700.HK · 600519.SS"
                    autocapitalize="characters" autocomplete="off" style="width:100%">
             <div id="ph-sym-dropdown" class="ac-dropdown"></div>
           </div>
@@ -335,7 +335,7 @@
     <div class="search-row" style="position:relative">
       <div class="search-box" style="position:relative;flex:1">
         <i class="fas fa-search"></i>
-        <input id="wl-search" type="text" placeholder="Type stock name or symbol to add..."
+        <input id="wl-search" type="text" placeholder="e.g. AAPL · VOD.L · SAP.DE · 0700.HK · 600519.SS"
                autocapitalize="characters" autocomplete="off" autocorrect="off"
                onkeydown="if(event.key==='Enter')addWatchlist()" style="padding-left:32px">
         <div id="wl-dropdown" class="ac-dropdown"></div>
