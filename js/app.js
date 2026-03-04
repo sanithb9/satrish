@@ -21,6 +21,42 @@ var APP = {
 var _ttTimer = null;
 
 /* ════════════════════════════════════════
+   FETCH STATUS TRACKER
+   Each source keeps: last success time,
+   last attempt time, last error string,
+   running ok/fail counts.
+════════════════════════════════════════ */
+var FETCH_LOG = {
+  indices:    { label:'Market Indices',  lastOk:null, lastTry:null, err:null, ok:0, fail:0 },
+  sectors:    { label:'Sector ETFs',     lastOk:null, lastTry:null, err:null, ok:0, fail:0 },
+  stocks:     { label:'Stock Prices',    lastOk:null, lastTry:null, err:null, ok:0, fail:0, syms:0 },
+  fearGreed:  { label:'Fear & Greed',    lastOk:null, lastTry:null, err:null, ok:0, fail:0 },
+  fxRates:    { label:'FX Rates',        lastOk:null, lastTry:null, err:null, ok:0, fail:0 },
+  aiAnalysis: { label:'AI News Analysis',lastOk:null, lastTry:null, err:null, ok:0, fail:0 }
+};
+
+var ERROR_LOG = [];  /* rolling last-30 errors: { time, source, msg } */
+
+function _logOk(key, extra) {
+  var s = FETCH_LOG[key]; if (!s) return;
+  s.lastOk  = Date.now();
+  s.lastTry = Date.now();
+  s.err     = null;
+  s.ok++;
+  if (extra) { if (extra.syms !== undefined) s.syms = extra.syms; }
+  if (APP.page === 'status') renderDiagnostics();
+}
+function _logErr(key, msg) {
+  var s = FETCH_LOG[key]; if (!s) return;
+  s.lastTry = Date.now();
+  s.err     = String(msg || 'Unknown error');
+  s.fail++;
+  ERROR_LOG.unshift({ time: Date.now(), source: s.label, msg: s.err });
+  if (ERROR_LOG.length > 30) ERROR_LOG.length = 30;
+  if (APP.page === 'status') renderDiagnostics();
+}
+
+/* ════════════════════════════════════════
    BOOT — runs as soon as DOM is ready
 ════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', function() {
@@ -191,21 +227,44 @@ function scheduleNextRefresh() {
 
 function liveRefresh() {
   /* Fetch FX rates and sector ETF data alongside everything else */
-  if (typeof fetchFXRates    === 'function') fetchFXRates().catch(function() {});
+  if (typeof fetchFXRates === 'function') {
+    FETCH_LOG.fxRates.lastTry = Date.now();
+    fetchFXRates().then(function(ok) {
+      if (ok !== false && ok !== null && ok !== undefined) _logOk('fxRates');
+      else _logErr('fxRates', 'No FX data returned');
+    }).catch(function(e) { _logErr('fxRates', e ? e.message : 'Network error'); });
+  }
   if (typeof fetchSectorData === 'function') {
+    FETCH_LOG.sectors.lastTry = Date.now();
     fetchSectorData().then(function(updated) {
-      if (updated) { try { renderSectors(); } catch(e) {} }
-    }).catch(function() {});
+      if (updated) { _logOk('sectors'); try { renderSectors(); } catch(e) {} }
+      else _logErr('sectors', 'No ETF data returned from /api/quotes');
+    }).catch(function(e) { _logErr('sectors', e ? e.message : 'Network error'); });
   }
 
   return Promise.all([
-    fetchIndices().then(function(data) {
-      if (data) { updateMarketCards(data); updateTimestamp(true); updateTicker(data); }
-      else       { updateTimestamp(false); }
-    }).catch(function() { updateTimestamp(false); }),
-    fetchFearGreed().then(function(fg) {
-      if (fg) updateGauge(fg.score, fg.label);
-    }).catch(function() {}),
+    (function() {
+      FETCH_LOG.indices.lastTry = Date.now();
+      return fetchIndices().then(function(data) {
+        if (data) {
+          _logOk('indices');
+          updateMarketCards(data); updateTimestamp(true); updateTicker(data);
+        } else {
+          _logErr('indices', 'Empty response from Yahoo Finance');
+          updateTimestamp(false);
+        }
+      }).catch(function(e) {
+        _logErr('indices', e ? e.message : 'Network error');
+        updateTimestamp(false);
+      });
+    })(),
+    (function() {
+      FETCH_LOG.fearGreed.lastTry = Date.now();
+      return fetchFearGreed().then(function(fg) {
+        if (fg) { _logOk('fearGreed'); updateGauge(fg.score, fg.label); }
+        else _logErr('fearGreed', 'No data returned');
+      }).catch(function(e) { _logErr('fearGreed', e ? e.message : 'Network error'); });
+    })(),
     (function() {
       /* Collect all symbols: STOCKS + portfolio holdings + watchlist */
       var syms = Object.keys(STOCKS);
@@ -223,8 +282,11 @@ function liveRefresh() {
           });
         }
       } catch(e) {}
+      FETCH_LOG.stocks.lastTry = Date.now();
       return fetchStockPrices(syms).then(function(prices) {
         if (prices) {
+          _logOk('stocks', { syms: Object.keys(prices).length });
+
           /* 1. Push live prices into STOCKS objects so all downstream code uses real data */
           updateStockPrices(prices);
 
@@ -232,17 +294,19 @@ function liveRefresh() {
           try { APP.recs = buildRecommendations(APP.settings.risk || 'medium'); } catch(e) {}
 
           /* 3. Re-render ALL analysis sections with live data */
-          try { renderTopPicks(); }       catch(e) {}  /* Home: top 3 picks */
-          try { renderPicks(); }          catch(e) {}  /* Picks page: immediate/short/long/avoid */
-          try { renderWatchlist(prices); } catch(e) {} /* Watchlist with live prices */
+          try { renderTopPicks(); }        catch(e) {}  /* Home: top 3 picks */
+          try { renderPicks(); }           catch(e) {}  /* Picks page: immediate/short/long/avoid */
+          try { renderWatchlist(prices); } catch(e) {}  /* Watchlist with live prices */
 
           /* 4. Re-render portfolio with live prices */
           try { updatePortfolioPrices(prices); renderPortfolioSummary(); renderPortfolioHoldings(); } catch(e) {}
 
           /* 5. Refresh alert badge (uses generatePortfolioAlerts with live prices) */
           try { updateAlertBadge(); } catch(e) {}
+        } else {
+          _logErr('stocks', 'No price data returned — Yahoo Finance may be rate-limiting');
         }
-      }).catch(function() {});
+      }).catch(function(e) { _logErr('stocks', e ? e.message : 'Network error'); });
     })()
   ]).catch(function() {});
 }
@@ -1049,6 +1113,131 @@ function addWatchlistFrom(sym) {
 }
 
 /* ════════════════════════════════════════
+   DIAGNOSTICS / STATUS PAGE
+════════════════════════════════════════ */
+function renderDiagnostics() {
+  var el = document.getElementById('diag-content');
+  if (!el) return;
+
+  var now = Date.now();
+
+  function tStr(ts) {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleTimeString('en', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  }
+  function agoStr(ts) {
+    if (!ts) return '';
+    var s = Math.round((now - ts) / 1000);
+    if (s <  60)   return s + 's ago';
+    if (s < 3600)  return Math.round(s / 60)   + 'm ago';
+    return               Math.round(s / 3600)  + 'h ago';
+  }
+
+  /* ── Source rows ── */
+  var sourceRows = Object.keys(FETCH_LOG).map(function(key) {
+    var src    = FETCH_LOG[key];
+    var hasOk  = !!src.lastOk;
+    var hasErr = src.fail > 0 && !src.lastOk;
+    var dotCls = hasOk ? 'up' : (src.fail > 0 ? 'dn' : 't3');
+    var extraTxt = (key === 'stocks' && src.syms > 0) ? ' · ' + src.syms + ' symbols' : '';
+    var neverTxt = !src.lastOk && src.ok === 0 && src.fail === 0
+      ? '<span class="diag-never">not yet fetched</span>' : '';
+    var lastOkTxt = src.lastOk
+      ? '<span style="color:var(--t1)">' + tStr(src.lastOk) + '</span> <span class="diag-ago">' + agoStr(src.lastOk) + '</span>' + extraTxt
+      : neverTxt;
+    var errTxt = src.err
+      ? '<div class="diag-err-inline">' + src.err + '</div>'
+      : '';
+    return '<div class="diag-row">' +
+      '<div class="diag-cell-name">' + src.label + '</div>' +
+      '<div class="diag-cell-time"><span class="' + dotCls + '">' +
+        (hasOk ? '●' : src.fail > 0 ? '●' : '○') + '</span> ' + lastOkTxt + '</div>' +
+      '<div class="diag-cell-counts">' +
+        '<span class="diag-ok">' + src.ok + ' ok</span>' +
+        '<span class="diag-sep">·</span>' +
+        '<span class="' + (src.fail > 0 ? 'diag-fail' : 'diag-ok0') + '">' + src.fail + ' err</span>' +
+      '</div>' +
+      errTxt +
+    '</div>';
+  }).join('');
+
+  /* ── Error log ── */
+  var errRows = ERROR_LOG.length === 0
+    ? '<div class="diag-empty">No errors recorded this session</div>'
+    : ERROR_LOG.slice(0, 15).map(function(e) {
+        return '<div class="diag-errlog-row">' +
+          '<span class="diag-errlog-time">' + tStr(e.time) + '</span>' +
+          '<span class="diag-errlog-src">'  + e.source    + '</span>' +
+          '<span class="diag-errlog-msg">'  + e.msg       + '</span>' +
+        '</div>';
+      }).join('');
+
+  el.innerHTML =
+    '<div class="diag-section">' +
+      '<div class="diag-sh">Data Sources <span class="diag-sh-sub">last refresh per source</span></div>' +
+      '<div class="diag-table">' + sourceRows + '</div>' +
+    '</div>' +
+    '<div class="diag-section" id="diag-server-block">' +
+      '<div class="diag-sh">Server Health</div>' +
+      '<div class="diag-loading">Fetching from /api/health…</div>' +
+    '</div>' +
+    '<div class="diag-section">' +
+      '<div class="diag-sh">Error Log <span class="diag-sh-sub">last 15 · this session only</span></div>' +
+      '<div class="diag-errlog">' + errRows + '</div>' +
+    '</div>' +
+    '<div style="padding:0 0 16px;text-align:center">' +
+      '<button class="pri-btn" onclick="doRefresh()">' +
+        '<i class="fas fa-sync-alt"></i> Refresh All Data Now</button>' +
+    '</div>';
+
+  /* Async server health panel */
+  fetch('/api/health')
+    .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+    .then(function(h) {
+      var sb = document.getElementById('diag-server-block');
+      if (!sb) return;
+      var uptimeSec = h.uptime || 0;
+      var uptimeStr = uptimeSec < 3600
+        ? Math.floor(uptimeSec / 60) + 'm ' + (uptimeSec % 60) + 's'
+        : Math.floor(uptimeSec / 3600) + 'h ' + Math.floor((uptimeSec % 3600) / 60) + 'm';
+      var avCls  = h.alphaVantage.configured ? 'up' : 'dn';
+      var avText = h.alphaVantage.configured
+        ? '● Configured · 25 req/day limit'
+        : '○ Not configured — Yahoo-only mode (set ALPHA_VANTAGE_API_KEY)';
+      var aiAge  = h.newsCache.ageMinutes !== null ? h.newsCache.ageMinutes + 'm old · ' + h.newsCache.alertCount + ' alerts' : 'no cache yet';
+      /* Quote cache entries (top 10 freshest) */
+      var cacheRows = (h.quoteCache.entries || []).slice(0, 10).map(function(c) {
+        var ageCls = c.ageS < 60 ? 'up' : c.ageS < 300 ? '' : 'dn';
+        return '<span class="diag-cache-chip ' + ageCls + '">' +
+          c.symbol + ' <span class="diag-cache-age">' + c.ageS + 's</span></span>';
+      }).join('');
+      sb.innerHTML =
+        '<div class="diag-sh">Server Health</div>' +
+        '<div class="diag-table">' +
+          _srow('Uptime',          uptimeStr) +
+          _srow('Memory',          h.memoryMB + ' MB heap used') +
+          _srow('Quote cache',     h.quoteCache.size + ' symbol' + (h.quoteCache.size !== 1 ? 's' : '') + ' cached') +
+          _srow('Alpha Vantage',   '<span class="' + avCls + '">' + avText + '</span>') +
+          _srow('AI news cache',   aiAge) +
+        '</div>' +
+        (cacheRows ? '<div class="diag-cache-chips">' + cacheRows + '</div>' : '');
+    })
+    .catch(function(e) {
+      var sb = document.getElementById('diag-server-block');
+      if (sb) sb.innerHTML = '<div class="diag-sh">Server Health</div>' +
+        '<div class="diag-err-inline">Could not reach /api/health: ' + e + '</div>';
+    });
+}
+
+function _srow(label, val) {
+  return '<div class="diag-row">' +
+    '<div class="diag-cell-name">' + label + '</div>' +
+    '<div class="diag-cell-time">' + val + '</div>' +
+    '<div class="diag-cell-counts"></div>' +
+  '</div>';
+}
+
+/* ════════════════════════════════════════
    NAVIGATION
 ════════════════════════════════════════ */
 function goPage(page) {
@@ -1063,6 +1252,7 @@ function goPage(page) {
   if (page === 'watchlist')  renderWatchlist();
   if (page === 'portfolio')  renderPortfolio();
   if (page === 'alerts')     updateAlertBadge();
+  if (page === 'status')     renderDiagnostics();
   /* Picks page: always rebuild recs with latest prices before rendering */
   if (page === 'picks') {
     try { APP.recs = buildRecommendations(APP.settings.risk || 'medium'); } catch(e) {}
@@ -1190,10 +1380,18 @@ function _applyAnalysis(data) {
 }
 
 function fetchAIAnalysis() {
+  FETCH_LOG.aiAnalysis.lastTry = Date.now();
   fetch('/api/analyze')
-    .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(data) { _applyAnalysis(data); })
-    .catch(function() { /* silently fail — static data already showing */ });
+    .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+    .then(function(data) {
+      if (data && Array.isArray(data.alerts) && data.alerts.length > 0) {
+        _logOk('aiAnalysis');
+      } else {
+        _logErr('aiAnalysis', 'Response had no alerts (Claude API key may be missing)');
+      }
+      _applyAnalysis(data);
+    })
+    .catch(function(e) { _logErr('aiAnalysis', String(e || 'Network error')); });
 }
 
 /* ════════════════════════════════════════
