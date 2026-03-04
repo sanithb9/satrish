@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
   try { loadSettings(); }    catch(e) { console.error('loadSettings', e); }
   try { loadWatchlist(); }   catch(e) { console.error('loadWatchlist', e); }
   try { loadPortfolio(); }   catch(e) { console.error('loadPortfolio', e); }
-  try { apiLoadKeys(); }     catch(e) {}
+  /* apiLoadKeys() removed — Finnhub/NewsAPI not used client-side */
   try { updateMarketStatus(); } catch(e) {}
   try { initRecs(); }        catch(e) { console.error('initRecs', e); }
   try { renderHome(); }      catch(e) { console.error('renderHome', e); }
@@ -93,8 +93,6 @@ function loadSettings() {
   } catch(e) { APP.settings = {}; }
   try { if (APP.settings.risk)    document.getElementById('setting-risk').value = APP.settings.risk; } catch(e) {}
   try { if (APP.settings.currency) document.getElementById('setting-currency').value = APP.settings.currency; } catch(e) {}
-  try { if (APP.settings.finnhub)  document.getElementById('setting-finnhub').value = APP.settings.finnhub; } catch(e) {}
-  try { if (APP.settings.newsapi)  document.getElementById('setting-newsapi').value = APP.settings.newsapi; } catch(e) {}
   try { if (APP.settings.t212 === false) document.getElementById('setting-t212').checked = false; } catch(e) {}
   try { if (APP.settings.autorefresh === false) document.getElementById('setting-autorefresh').checked = false; } catch(e) {}
   try { if (APP.settings.emailalerts) document.getElementById('setting-emailalerts').checked = true; } catch(e) {}
@@ -110,8 +108,6 @@ function saveSettings() {
     APP.settings = {
       risk:        document.getElementById('setting-risk').value,
       currency:    document.getElementById('setting-currency').value,
-      finnhub:     document.getElementById('setting-finnhub').value.trim(),
-      newsapi:     document.getElementById('setting-newsapi').value.trim(),
       t212:        document.getElementById('setting-t212').checked,
       autorefresh: document.getElementById('setting-autorefresh').checked,
       emailalerts: document.getElementById('setting-emailalerts').checked,
@@ -119,7 +115,6 @@ function saveSettings() {
       interval:    parseInt(document.getElementById('setting-interval').value, 10) || 0
     };
     localStorage.setItem('ss_settings', JSON.stringify(APP.settings));
-    apiLoadKeys();
     /* Restart client-side schedule and notify server */
     startClientSchedule(APP.settings.interval);
     fetch('/api/schedule', {

@@ -1,19 +1,13 @@
 /* ================================================================
    StockSense AI — Live Data API Layer
-   All functions return data or fall back gracefully.
-   The app NEVER breaks if these fail.
+   Data sources (approved):
+     • Yahoo Finance JSON quote endpoint — free, ~15 min delayed.
+       All calls are routed through /api/quotes on our own server so
+       no third-party CORS proxies are needed.
+     • Alpha Vantage FREE API — available as fallback (see below).
+   The app NEVER breaks if live calls fail; static fallback data
+   is always shown first.
    ================================================================ */
-
-var API_KEYS = { finnhub: '', newsapi: '' };
-
-/* ── Load saved keys ── */
-function apiLoadKeys() {
-  try {
-    var s = JSON.parse(localStorage.getItem('ss_settings') || '{}');
-    if (s.finnhub) API_KEYS.finnhub = s.finnhub;
-    if (s.newsapi) API_KEYS.newsapi = s.newsapi;
-  } catch(e) {}
-}
 
 /* ── Safe fetch with timeout ── */
 function safeFetch(url, timeout) {
@@ -31,61 +25,24 @@ function safeFetch(url, timeout) {
   });
 }
 
-/* ── CORS proxy list — ordered by reliability ── */
-var PROXIES = [
-  /* 1. corsproxy.io — fast, no encoding */
-  { prefix: 'https://corsproxy.io/?',                    encode: false },
-  /* 2. allorigins — wraps response in {contents} */
-  { prefix: 'https://api.allorigins.win/get?url=',       encode: true  },
-  /* 3. thingproxy — reliable fallback */
-  { prefix: 'https://thingproxy.freeboard.io/fetch/',    encode: false },
-  /* 4. codetabs proxy */
-  { prefix: 'https://api.codetabs.com/v1/proxy?quest=',  encode: true  },
-  /* 5. corsproxy.org alternative */
-  { prefix: 'https://corsproxy.org/?',                   encode: false }
-];
-
-/* Also try query2 subdomain as alternative to query1 for Yahoo Finance */
-var YF_BASE2 = 'https://query2.finance.yahoo.com/v7/finance/quote?symbols=';
-
-function proxyFetch(targetUrl) {
-  /* First try with query2 subdomain if this is a Yahoo Finance query1 URL */
-  var urls = [targetUrl];
-  if (targetUrl.indexOf('query1.finance.yahoo.com') !== -1) {
-    urls.push(targetUrl.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com'));
-  }
-
-  return new Promise(function(resolve) {
-    var proxyIdx = 0;
-    var urlIdx   = 0;
-
-    function tryNext() {
-      if (proxyIdx >= PROXIES.length) { resolve(null); return; }
-      var proxy   = PROXIES[proxyIdx];
-      var baseUrl = urls[urlIdx % urls.length];
-      urlIdx++;
-      /* Move to next proxy after we have tried all url variants for this proxy */
-      if (urlIdx % urls.length === 0) proxyIdx++;
-
-      var full = proxy.prefix + (proxy.encode ? encodeURIComponent(baseUrl) : baseUrl);
-      safeFetch(full, 8000).then(function(data) {
-        if (!data) { tryNext(); return; }
-        /* allorigins wraps response in {contents: "...json string..."} */
-        if (typeof data.contents === 'string') {
-          try { data = JSON.parse(data.contents); } catch(e) { tryNext(); return; }
-        }
-        if (!data) { tryNext(); return; }
-        resolve(data);
-      });
-    }
-    tryNext();
-  });
+/* ──────────────────────────────────────────
+   SERVER-SIDE YAHOO FINANCE PROXY
+   The browser calls /api/quotes on our own Node.js server.
+   The server fetches from Yahoo Finance (no CORS issues).
+   Data is free and approximately 15 minutes delayed for most
+   markets.  Real-time data requires a paid feed; none is used.
+────────────────────────────────────────── */
+function quoteFetch(symbols, fields) {
+  fields = fields || 'regularMarketPrice,regularMarketChangePercent,regularMarketTime';
+  var url = '/api/quotes?symbols=' + encodeURIComponent(symbols) +
+            '&fields='  + encodeURIComponent(fields);
+  return safeFetch(url, 9000);
 }
 
 /* ══════════════════════════════════════════════
-   MARKET INDICES (Yahoo Finance via proxy)
+   MARKET INDICES (Yahoo Finance via /api/quotes)
+   Source: Yahoo Finance JSON — free, ~15 min delay.
 ══════════════════════════════════════════════ */
-var YF_BASE = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=';
 
 /* Map of our key → Yahoo symbol */
 var INDEX_MAP = {
@@ -102,27 +59,27 @@ var INDEX_MAP = {
 /* Returns { SP500:{price,chg}, NASDAQ:{price,chg}, ... } or null */
 function fetchIndices() {
   var syms = Object.values(INDEX_MAP).join(',');
-  var url = YF_BASE + syms + '&fields=regularMarketPrice,regularMarketChangePercent';
-  return proxyFetch(url).then(function(data) {
-    if (!data || !data.quoteResponse || !data.quoteResponse.result) return null;
-    var result = {};
-    data.quoteResponse.result.forEach(function(q) {
-      Object.keys(INDEX_MAP).forEach(function(key) {
-        if (INDEX_MAP[key] === q.symbol) {
-          result[key] = {
-            price: q.regularMarketPrice || 0,
-            chg: q.regularMarketChangePercent || 0
-          };
-        }
+  return quoteFetch(syms, 'regularMarketPrice,regularMarketChangePercent')
+    .then(function(data) {
+      if (!data || !data.quoteResponse || !data.quoteResponse.result) return null;
+      var result = {};
+      data.quoteResponse.result.forEach(function(q) {
+        Object.keys(INDEX_MAP).forEach(function(key) {
+          if (INDEX_MAP[key] === q.symbol) {
+            result[key] = {
+              price: q.regularMarketPrice || 0,
+              chg:   q.regularMarketChangePercent || 0
+            };
+          }
+        });
       });
-    });
-    return Object.keys(result).length > 0 ? result : null;
-  }).catch(function() { return null; });
+      return Object.keys(result).length > 0 ? result : null;
+    }).catch(function() { return null; });
 }
 
 /* ══════════════════════════════════════════════
    STOCK PRICES — chunked batch (max 25/request)
-   Merges results from all chunks into one object.
+   Source: Yahoo Finance JSON — free, ~15 min delay.
 ══════════════════════════════════════════════ */
 var PRICE_FIELDS = 'regularMarketPrice,regularMarketChangePercent,regularMarketTime';
 var _CHUNK_SIZE  = 25;
@@ -142,32 +99,9 @@ function parseYFQuotes(data) {
 }
 
 function fetchChunk(syms) {
-  var symStr = syms.join(',');
-  /* Try query1 then query2 via every proxy */
-  var urls = [
-    YF_BASE  + symStr + '&fields=' + PRICE_FIELDS,
-    YF_BASE2 + symStr + '&fields=' + PRICE_FIELDS
-  ];
-  return new Promise(function(resolve) {
-    var pi = 0, ui = 0;
-    function next() {
-      if (pi >= PROXIES.length) { resolve(null); return; }
-      var proxy = PROXIES[pi];
-      var url   = urls[ui % urls.length];
-      ui++;
-      if (ui % urls.length === 0) pi++;
-      var full = proxy.prefix + (proxy.encode ? encodeURIComponent(url) : url);
-      safeFetch(full, 9000).then(function(data) {
-        if (!data) { next(); return; }
-        if (typeof data.contents === 'string') {
-          try { data = JSON.parse(data.contents); } catch(e) { next(); return; }
-        }
-        var parsed = parseYFQuotes(data);
-        if (parsed) { resolve(parsed); } else { next(); }
-      });
-    }
-    next();
-  });
+  return quoteFetch(syms.join(','), PRICE_FIELDS)
+    .then(function(data) { return parseYFQuotes(data); })
+    .catch(function() { return null; });
 }
 
 function fetchStockPrices(symbols) {
@@ -187,32 +121,41 @@ function fetchStockPrices(symbols) {
 }
 
 /* ══════════════════════════════════════════════
-   FEAR & GREED INDEX (CNN Money)
+   FEAR & GREED — derived from VIX
+   Source: VIX data from Yahoo Finance (^VIX).
+   VIX is the CBOE Volatility Index — the standard market
+   measure of investor fear.  Higher VIX = more fear.
+   No CNN or other unofficial endpoints are used.
 ══════════════════════════════════════════════ */
-function fetchFearGreed() {
-  var url = 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata';
-  return proxyFetch(url).then(function(data) {
-    if (data && data.fear_and_greed && data.fear_and_greed.score) {
-      return {
-        score: Math.round(data.fear_and_greed.score),
-        label: data.fear_and_greed.rating || scoreToLabel(data.fear_and_greed.score)
-      };
-    }
-    return null;
-  }).catch(function() { return null; });
+function vixToFearGreed(vix) {
+  var score, label;
+  if      (vix <= 12) { score = 85; label = 'Extreme Greed'; }
+  else if (vix <= 17) { score = 65; label = 'Greed'; }
+  else if (vix <= 20) { score = 50; label = 'Neutral'; }
+  else if (vix <= 25) { score = 35; label = 'Fear'; }
+  else if (vix <= 30) { score = 20; label = 'Fear'; }
+  else                { score = 10; label = 'Extreme Fear'; }
+  return { score: score, label: label };
 }
 
-function scoreToLabel(s) {
-  if (s <= 25) return 'Extreme Fear';
-  if (s <= 45) return 'Fear';
-  if (s <= 55) return 'Neutral';
-  if (s <= 75) return 'Greed';
-  return 'Extreme Greed';
+function fetchFearGreed() {
+  /* VIX is already in INDEX_MAP, but we fetch it standalone here so
+     fetchFearGreed() can be called independently by liveRefresh(). */
+  return quoteFetch('^VIX', 'regularMarketPrice')
+    .then(function(data) {
+      if (!data || !data.quoteResponse || !data.quoteResponse.result ||
+          !data.quoteResponse.result[0]) return null;
+      var vix = data.quoteResponse.result[0].regularMarketPrice;
+      if (!vix || vix <= 0) return null;
+      return vixToFearGreed(vix);
+    }).catch(function() { return null; });
 }
 
 /* ══════════════════════════════════════════════
-   FX RATES (live via Yahoo Finance)
-   Fallbacks are reasonably close approximations.
+   FX RATES (Yahoo Finance via /api/quotes)
+   Source: Yahoo Finance — free, ~15 min delay.
+   Fallbacks are reasonable approximations shown
+   before live data loads.
 ══════════════════════════════════════════════ */
 var FX_RATES = {
   GBPUSD: 1.27,   /* 1 GBP = X USD  */
@@ -222,15 +165,25 @@ var FX_RATES = {
 
 function fetchFXRates() {
   var syms = 'GBPUSD=X,GBPEUR=X,GBPCHF=X';
-  var url  = YF_BASE + syms + '&fields=regularMarketPrice';
-  return proxyFetch(url).then(function(data) {
-    if (!data || !data.quoteResponse || !data.quoteResponse.result) return;
-    data.quoteResponse.result.forEach(function(q) {
-      var p = q.regularMarketPrice;
-      if (!p || p <= 0) return;
-      if (q.symbol === 'GBPUSD=X') FX_RATES.GBPUSD = p;
-      if (q.symbol === 'GBPEUR=X') FX_RATES.GBPEUR = p;
-      if (q.symbol === 'GBPCHF=X') FX_RATES.GBPCHF = p;
-    });
-  }).catch(function() {});
+  return quoteFetch(syms, 'regularMarketPrice')
+    .then(function(data) {
+      if (!data || !data.quoteResponse || !data.quoteResponse.result) return;
+      data.quoteResponse.result.forEach(function(q) {
+        var p = q.regularMarketPrice;
+        if (!p || p <= 0) return;
+        if (q.symbol === 'GBPUSD=X') FX_RATES.GBPUSD = p;
+        if (q.symbol === 'GBPEUR=X') FX_RATES.GBPEUR = p;
+        if (q.symbol === 'GBPCHF=X') FX_RATES.GBPCHF = p;
+      });
+    }).catch(function() {});
 }
+
+/* ══════════════════════════════════════════════
+   NOTE ON ALPHA VANTAGE (backup)
+   Alpha Vantage FREE API is listed as an approved
+   backup source.  It provides 25 req/day on the
+   free tier.  It is not currently wired in because
+   Yahoo Finance covers all required data.  If Yahoo
+   Finance becomes unavailable, Alpha Vantage can be
+   integrated at: https://www.alphavantage.co/
+══════════════════════════════════════════════ */

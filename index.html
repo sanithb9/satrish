@@ -425,16 +425,19 @@
     </div>
     <div class="modal-body">
       <div class="set-sec">
-        <h3>API Keys <span class="opt-tag">Optional — enhances live data</span></h3>
-        <p class="set-note">The app works fully with curated data. Add free API keys to get real-time live prices.</p>
-        <div class="api-row">
-          <label>Finnhub API Key <a href="https://finnhub.io" target="_blank" class="get-key">Get free →</a></label>
-          <input type="text" id="setting-finnhub" placeholder="e.g. cq5abc123...">
-        </div>
-        <div class="api-row">
-          <label>NewsAPI Key <a href="https://newsapi.org" target="_blank" class="get-key">Get free →</a></label>
-          <input type="text" id="setting-newsapi" placeholder="e.g. 1234abcd...">
-        </div>
+        <h3>Data Sources <span class="opt-tag">Live prices</span></h3>
+        <p class="set-note">
+          Live market data is fetched from <strong>Yahoo Finance</strong> (free, approximately 15-minute delay for most markets).
+          If Yahoo Finance is temporarily unavailable the app shows the last known values.
+          No paid feeds, no unofficial broker APIs, and no HTML scraping are used.
+        </p>
+        <p class="set-note" style="margin-top:6px">
+          <i class="fas fa-clock" style="color:var(--accent)"></i>&nbsp;
+          <strong>US markets</strong> (NYSE / NASDAQ): ~15 min delayed &nbsp;&middot;&nbsp;
+          <strong>LSE (FTSE)</strong>: ~15 min delayed &nbsp;&middot;&nbsp;
+          <strong>Crypto</strong> (BTC): near real-time &nbsp;&middot;&nbsp;
+          <strong>Futures</strong> (Gold, Oil): ~10–20 min delayed
+        </p>
       </div>
       <div class="set-sec">
         <h3>Trading Preferences</h3>
