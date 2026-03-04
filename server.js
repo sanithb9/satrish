@@ -1,9 +1,11 @@
 'use strict';
 
 require('dotenv').config();
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
+const http     = require('http');
+const https    = require('https');
+const url_mod  = require('url');
+const fs       = require('fs');
+const path     = require('path');
 
 const { fetchLatestNews } = require('./newsMonitor');
 const { analyzeNews }     = require('./stockNewsAnalyzer');
@@ -175,6 +177,57 @@ function startScheduler(intervalMinutes) {
   _scheduleTimer = setInterval(scheduledCheck, _scheduleInterval * 60 * 1000);
 }
 
+/* ─── GET /api/quotes — server-side Yahoo Finance proxy ─────────── */
+/* Fetches from Yahoo Finance so the browser never needs CORS proxies.
+   Source: Yahoo Finance JSON quote endpoint (free, ~15 min delayed).
+   Endpoint: /api/quotes?symbols=AAPL,^GSPC&fields=regularMarketPrice,...  */
+function yahooFetch(symbols, fields) {
+  var endpoints = [
+    'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' +
+      encodeURIComponent(symbols) + '&fields=' + encodeURIComponent(fields),
+    'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' +
+      encodeURIComponent(symbols) + '&fields=' + encodeURIComponent(fields)
+  ];
+  return new Promise(function(resolve) {
+    function tryEndpoint(idx) {
+      if (idx >= endpoints.length) { resolve(null); return; }
+      var req = https.get(endpoints[idx], {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; StockSenseAI/1.0)',
+          'Accept': 'application/json'
+        }
+      }, function(r) {
+        var raw = '';
+        r.on('data', function(c) { raw += c; });
+        r.on('end', function() {
+          try {
+            var data = JSON.parse(raw);
+            if (data && data.quoteResponse) { resolve(data); }
+            else { tryEndpoint(idx + 1); }
+          } catch(e) { tryEndpoint(idx + 1); }
+        });
+      });
+      req.on('error', function() { tryEndpoint(idx + 1); });
+      req.setTimeout(9000, function() { req.destroy(); tryEndpoint(idx + 1); });
+    }
+    tryEndpoint(0);
+  });
+}
+
+async function handleQuotes(req, res) {
+  var parsed  = url_mod.parse(req.url, true);
+  var symbols = (parsed.query.symbols || '').trim();
+  var fields  = (parsed.query.fields  || 'regularMarketPrice,regularMarketChangePercent,regularMarketTime').trim();
+  if (!symbols) return sendJSON(res, 400, { error: 'symbols parameter required' });
+  try {
+    var data = await yahooFetch(symbols, fields);
+    if (!data) return sendJSON(res, 502, { error: 'Yahoo Finance unavailable — data is free (~15 min delayed)' });
+    sendJSON(res, 200, data);
+  } catch(err) {
+    sendJSON(res, 502, { error: err.message });
+  }
+}
+
 /* ─── GET /api/status ───────────────────────────────────────────── */
 function handleStatus(res) {
   var urgentCount = _cache
@@ -283,6 +336,9 @@ var server = http.createServer(function(req, res) {
   }
 
   /* API routes */
+  if (url === '/api/quotes' && req.method === 'GET') {
+    return handleQuotes(req, res);
+  }
   if (url === '/api/analyze') {
     return handleAnalyze(res);
   }
