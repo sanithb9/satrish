@@ -229,9 +229,9 @@ function liveRefresh() {
   /* Fetch FX rates and sector ETF data alongside everything else */
   if (typeof fetchFXRates === 'function') {
     FETCH_LOG.fxRates.lastTry = Date.now();
-    fetchFXRates().then(function(ok) {
-      if (ok !== false && ok !== null && ok !== undefined) _logOk('fxRates');
-      else _logErr('fxRates', 'No FX data returned');
+    fetchFXRates().then(function(updated) {
+      if (updated) _logOk('fxRates');
+      else _logErr('fxRates', 'No FX rate data returned from Yahoo Finance');
     }).catch(function(e) { _logErr('fxRates', e ? e.message : 'Network error'); });
   }
   if (typeof fetchSectorData === 'function') {
@@ -1387,7 +1387,7 @@ function fetchAIAnalysis() {
       if (data && Array.isArray(data.alerts) && data.alerts.length > 0) {
         _logOk('aiAnalysis');
       } else {
-        _logErr('aiAnalysis', 'Response had no alerts (Claude API key may be missing)');
+        _logErr('aiAnalysis', 'No alerts returned — set ANTHROPIC_API_KEY in Render environment variables');
       }
       _applyAnalysis(data);
     })

@@ -182,15 +182,19 @@ function startScheduler(intervalMinutes) {
 /* Fetches from Yahoo Finance so the browser never needs CORS proxies.
    Source: Yahoo Finance JSON quote endpoint (free, ~15 min delayed).
    Endpoint: /api/quotes?symbols=AAPL,^GSPC&fields=regularMarketPrice,...  */
-/* ─── curl-based JSON fetch (uses system proxy + curl TLS fingerprint) ─── */
-/* Node.js https.get fails with EAI_AGAIN in this environment because it    */
-/* doesn't auto-pick up the https_proxy env var the way curl does.          */
+/* ─── HTTP fetch helpers ──────────────────────────────────────────────── */
+/* Two implementations:                                                      */
+/*   curlJSON  – uses system curl, honours https_proxy env var automatically */
+/*   nodeGet   – uses Node.js https.get, works on Render (direct internet)  */
+/* smartGet tries curl first; if it returns null it falls back to nodeGet.   */
+
+var _BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
 function curlJSON(url) {
   return new Promise(function(resolve) {
     execFile('curl', [
-      '-s', '--max-time', '10',
-      '-L',
-      '-H', 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      '-s', '--max-time', '10', '-L',
+      '-H', 'User-Agent: ' + _BROWSER_UA,
       '-H', 'Accept: application/json,*/*',
       '-H', 'Accept-Language: en-US,en;q=0.9',
       url
@@ -201,14 +205,48 @@ function curlJSON(url) {
   });
 }
 
-/* ─── Yahoo Finance chart endpoint (per-symbol, not rate-limited) ─────── */
+function nodeGet(url) {
+  return new Promise(function(resolve) {
+    var opts = url_mod.parse(url);
+    opts.headers = {
+      'User-Agent': _BROWSER_UA,
+      'Accept': 'application/json,*/*',
+      'Accept-Language': 'en-US,en;q=0.9'
+    };
+    var req = https.get(opts, function(res) {
+      if (res.statusCode < 200 || res.statusCode >= 300) { res.resume(); resolve(null); return; }
+      var raw = '';
+      res.on('data', function(c) { raw += c; });
+      res.on('end', function() {
+        try { resolve(JSON.parse(raw)); } catch(e) { resolve(null); }
+      });
+    });
+    req.on('error', function() { resolve(null); });
+    req.setTimeout(10000, function() { req.destroy(); resolve(null); });
+  });
+}
+
+/* Try curl first (handles proxy env vars); fall back to Node.js https.get */
+function smartGet(url) {
+  return curlJSON(url).then(function(data) {
+    if (data !== null) return data;
+    return nodeGet(url);
+  });
+}
+
+/* ─── Yahoo Finance chart endpoint (per-symbol) ───────────────────────── */
 /* The /v7/finance/quote batch endpoint returns 429.                        */
 /* The /v8/finance/chart/{sym} endpoint works for all symbol types:         */
 /* equities, ETFs, indices (^GSPC), futures (GC=F), crypto, FX (GBPUSD=X). */
+/* Tries query1 first, then query2 as fallback (some IP ranges hit 429).   */
 function yahooChartFetch(symbol) {
-  var url = 'https://query1.finance.yahoo.com/v8/finance/chart/' +
-            encodeURIComponent(symbol) + '?interval=1d&range=1d';
-  return curlJSON(url).then(function(data) {
+  var path = '/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=1d&range=1d';
+  var url1 = 'https://query1.finance.yahoo.com' + path;
+  var url2 = 'https://query2.finance.yahoo.com' + path;
+  return smartGet(url1).then(function(data) {
+    if (data && data.chart && data.chart.result) return data;
+    return smartGet(url2);  /* fallback to query2 host */
+  }).then(function(data) {
     if (!data || !data.chart || !data.chart.result || !data.chart.result[0]) return null;
     var meta  = data.chart.result[0].meta;
     var price = meta.regularMarketPrice;
@@ -258,7 +296,7 @@ function alphaVantageFetch(symbol) {
   var url = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE' +
             '&symbol=' + encodeURIComponent(symbol) +
             '&apikey=' + encodeURIComponent(avKey);
-  return curlJSON(url).then(function(data) {
+  return smartGet(url).then(function(data) {
     if (!data) return null;
     var gq = data['Global Quote'];
     if (!gq || !gq['05. price']) return null;
@@ -716,6 +754,7 @@ async function handleQuotes(req, res) {
 /* ─── GET /api/health ───────────────────────────────────────────── */
 function handleHealth(res) {
   var avKey        = (process.env.ALPHA_VANTAGE_API_KEY || '').trim();
+  var claudeKey    = (process.env.ANTHROPIC_API_KEY    || '').trim();
   var cacheSymbols = Object.keys(QUOTE_CACHE);
   var cacheEntries = cacheSymbols.slice(0, 60).map(function(sym) {
     var e = QUOTE_CACHE[sym];
@@ -735,7 +774,11 @@ function handleHealth(res) {
     alphaVantage: {
       configured: !!avKey,
       dailyLimit: 25,
-      note: avKey ? 'key configured' : 'ALPHA_VANTAGE_API_KEY not set — Yahoo-only mode'
+      note: avKey ? 'key configured' : 'Not configured — set ALPHA_VANTAGE_API_KEY in Render environment variables'
+    },
+    claude: {
+      configured: !!claudeKey,
+      note: claudeKey ? 'key configured' : 'Not configured — set ANTHROPIC_API_KEY in Render environment variables'
     },
     newsCache: {
       hasData:    !!_cache,
