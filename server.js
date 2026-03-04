@@ -214,18 +214,166 @@ function yahooFetch(symbols, fields) {
   });
 }
 
-async function handleQuotes(req, res) {
-  var parsed  = url_mod.parse(req.url, true);
-  var symbols = (parsed.query.symbols || '').trim();
-  var fields  = (parsed.query.fields  || 'regularMarketPrice,regularMarketChangePercent,regularMarketTime').trim();
-  if (!symbols) return sendJSON(res, 400, { error: 'symbols parameter required' });
-  try {
-    var data = await yahooFetch(symbols, fields);
-    if (!data) return sendJSON(res, 502, { error: 'Yahoo Finance unavailable — data is free (~15 min delayed)' });
-    sendJSON(res, 200, data);
-  } catch(err) {
-    sendJSON(res, 502, { error: err.message });
+/* ─── Layer 2: Alpha Vantage (backup, single symbol) ────────────── */
+/* Free tier: 25 req/day, 5 req/min.  Only called when Yahoo misses a
+   symbol or Layer 3 validation triggers a cross-check.
+   Get a free key at https://www.alphavantage.co/support/#api-key
+   and set ALPHA_VANTAGE_API_KEY in .env.                            */
+function alphaVantageFetch(symbol) {
+  var avKey = (process.env.ALPHA_VANTAGE_API_KEY || '').trim();
+  if (!avKey) return Promise.resolve(null);
+  return new Promise(function(resolve) {
+    var url = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE' +
+              '&symbol='  + encodeURIComponent(symbol) +
+              '&apikey='  + encodeURIComponent(avKey);
+    var req = https.get(url, {
+      headers: { 'User-Agent': 'StockSenseAI/1.0', 'Accept': 'application/json' }
+    }, function(r) {
+      var raw = '';
+      r.on('data', function(c) { raw += c; });
+      r.on('end', function() {
+        try {
+          var data   = JSON.parse(raw);
+          var gq     = data['Global Quote'];
+          if (!gq || !gq['05. price']) { resolve(null); return; }
+          var price  = parseFloat(gq['05. price']);
+          var chg    = parseFloat((gq['10. change percent'] || '0%').replace('%', ''));
+          var dayStr = gq['07. latest trading day'] || '';
+          if (!price || price <= 0) { resolve(null); return; }
+          /* AV gives a date only; approximate close as 21:00 UTC (4pm ET) */
+          var ts = dayStr ? new Date(dayStr + 'T21:00:00Z') : new Date(0);
+          resolve({ price: price, chg: chg, ts: ts });
+        } catch(e) { resolve(null); }
+      });
+    });
+    req.on('error', function() { resolve(null); });
+    req.setTimeout(9000, function() { req.destroy(); resolve(null); });
+  });
+}
+
+/* ─── Layer 3: Validation logic ─────────────────────────────────── */
+/* Rules:
+   1. If both sources disagree by >2%, pick the one with the more
+      recent timestamp.
+   2. If Yahoo data is ≥5 min older than Alpha Vantage data, prefer AV.
+   3. Otherwise default to Yahoo (batch-capable, primary source).      */
+var STALE_MS       = 5 * 60 * 1000;  /* 5 minutes */
+var PRICE_DISAGREE = 0.02;            /* 2 % */
+
+function pickBestSource(yfQuote, avResult, symbol) {
+  if (!avResult) return 'yf';   /* No AV data — always use Yahoo */
+
+  var yfPrice = yfQuote.regularMarketPrice || 0;
+  var avPrice = avResult.price;
+  var yfTs    = yfQuote.regularMarketTime
+                  ? new Date(yfQuote.regularMarketTime * 1000)
+                  : new Date(0);
+  var avTs    = avResult.ts;
+  var now     = Date.now();
+
+  /* Rule 1 — price disagreement */
+  if (yfPrice > 0 && avPrice > 0) {
+    var diff = Math.abs(yfPrice - avPrice) / Math.max(yfPrice, avPrice);
+    if (diff > PRICE_DISAGREE) {
+      var winner = (now - yfTs.getTime()) <= (now - avTs.getTime()) ? 'yf' : 'av';
+      console.log('[validate] ' + symbol + ': prices disagree YF=' + yfPrice.toFixed(2) +
+                  ' AV=' + avPrice.toFixed(2) + ' (' + (diff * 100).toFixed(1) +
+                  '%) → using ' + winner.toUpperCase() + ' (fresher timestamp)');
+      return winner;
+    }
   }
+
+  /* Rule 2 — staleness: AV is measurably fresher than YF */
+  if (avTs.getTime() - yfTs.getTime() > STALE_MS) {
+    console.log('[validate] ' + symbol + ': YF timestamp is ' +
+                Math.round((avTs.getTime() - yfTs.getTime()) / 60000) +
+                ' min older than AV → using AV');
+    return 'av';
+  }
+
+  return 'yf';  /* Rule 3 — default to Yahoo */
+}
+
+/* ─── /api/quotes — 3-layer data pipeline ───────────────────────── */
+async function handleQuotes(req, res) {
+  var parsed     = url_mod.parse(req.url, true);
+  var symbols    = (parsed.query.symbols || '').trim();
+  var fields     = (parsed.query.fields  ||
+                    'regularMarketPrice,regularMarketChangePercent,regularMarketTime').trim();
+  if (!symbols) return sendJSON(res, 400, { error: 'symbols parameter required' });
+
+  var symbolList = symbols.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+
+  /* ── Layer 1: Yahoo Finance (batch) ── */
+  var yfData = await yahooFetch(symbols, fields);
+  var yfMap  = {};
+  if (yfData && yfData.quoteResponse && yfData.quoteResponse.result) {
+    yfData.quoteResponse.result.forEach(function(q) {
+      if (q.symbol) yfMap[q.symbol] = q;
+    });
+  }
+
+  /* Identify symbols Yahoo missed or returned a zero price for */
+  var needBackup = symbolList.filter(function(s) {
+    var q = yfMap[s];
+    return !q || !(q.regularMarketPrice > 0);
+  });
+
+  /* ── Layer 2: Alpha Vantage for symbols Yahoo missed ── */
+  /* Cap at 5 per request to stay within the 5 req/min free limit */
+  var avMap = {};
+  if (needBackup.length > 0) {
+    var batch     = needBackup.slice(0, 5);
+    var avResults = await Promise.all(batch.map(alphaVantageFetch));
+    batch.forEach(function(sym, i) {
+      if (avResults[i]) avMap[sym] = avResults[i];
+    });
+  }
+
+  /* ── Layer 3: Validation — build the final result array ── */
+  var finalResults = [];
+  symbolList.forEach(function(sym) {
+    var yfQ = yfMap[sym];
+    var avR = avMap[sym];
+
+    if (yfQ && yfQ.regularMarketPrice > 0) {
+      /* Yahoo returned data — validate against AV if available */
+      var choice = pickBestSource(yfQ, avR, sym);
+      if (choice === 'av' && avR) {
+        finalResults.push({
+          symbol:                     sym,
+          regularMarketPrice:         avR.price,
+          regularMarketChangePercent: avR.chg,
+          regularMarketTime:          Math.floor(avR.ts.getTime() / 1000),
+          _dataSource:                'alphavantage'
+        });
+      } else {
+        yfQ._dataSource = 'yahoo';
+        finalResults.push(yfQ);
+      }
+    } else if (avR) {
+      /* Yahoo failed — use Alpha Vantage backup */
+      console.log('[quotes] ' + sym + ': Yahoo unavailable, using Alpha Vantage backup');
+      finalResults.push({
+        symbol:                     sym,
+        regularMarketPrice:         avR.price,
+        regularMarketChangePercent: avR.chg,
+        regularMarketTime:          Math.floor(avR.ts.getTime() / 1000),
+        _dataSource:                'alphavantage'
+      });
+    } else {
+      /* Both sources failed for this symbol */
+      console.warn('[quotes] ' + sym + ': no data from Yahoo Finance or Alpha Vantage');
+    }
+  });
+
+  var missing = symbolList.length - finalResults.length;
+  sendJSON(res, 200, {
+    quoteResponse: {
+      result: finalResults,
+      error:  missing > 0 ? missing + ' symbol(s) unavailable from all sources' : null
+    }
+  });
 }
 
 /* ─── GET /api/status ───────────────────────────────────────────── */
