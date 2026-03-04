@@ -1089,3 +1089,69 @@ body{
   margin-top:-14px;margin-bottom:16px;
 }
 .last-checked i{font-size:10px;color:var(--green)}
+
+/* ════════════════════════════════════════
+   DIAGNOSTICS / STATUS PAGE
+════════════════════════════════════════ */
+.diag-section{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:14px;margin-bottom:14px;overflow:hidden;
+}
+.diag-sh{
+  font-size:12px;font-weight:700;color:var(--t3);
+  text-transform:uppercase;letter-spacing:.6px;
+  padding:12px 16px 10px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.diag-sh-sub{font-size:10px;font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0}
+.diag-row{
+  display:grid;
+  grid-template-columns:1fr 1fr auto;
+  align-items:start;
+  gap:6px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--border);
+  font-size:12px;
+}
+.diag-row:last-child{border-bottom:none}
+.diag-cell-name{font-weight:600;color:var(--t1)}
+.diag-cell-time{color:var(--t2);line-height:1.5}
+.diag-cell-counts{display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap}
+.diag-ok  {color:var(--green)}
+.diag-ok0 {color:var(--t3)}
+.diag-fail{color:var(--red);font-weight:700}
+.diag-sep {color:var(--t3)}
+.diag-ago {color:var(--t3);font-size:11px}
+.diag-never{color:var(--t3);font-style:italic}
+.diag-err-inline{
+  grid-column:1/-1;font-size:11px;color:var(--red);
+  background:rgba(239,68,68,.08);border-radius:6px;
+  padding:5px 8px;margin-top:2px;
+}
+.diag-empty{padding:16px;text-align:center;font-size:12px;color:var(--t3)}
+.diag-loading{padding:14px 16px;font-size:12px;color:var(--t3)}
+.diag-errlog{padding:4px 0}
+.diag-errlog-row{
+  display:grid;
+  grid-template-columns:70px 130px 1fr;
+  gap:6px;align-items:start;
+  padding:7px 16px;
+  border-bottom:1px solid var(--border);
+  font-size:11px;line-height:1.45;
+}
+.diag-errlog-row:last-child{border-bottom:none}
+.diag-errlog-time{color:var(--t3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.diag-errlog-src{color:var(--yellow);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.diag-errlog-msg{color:var(--t2)}
+.diag-cache-chips{
+  display:flex;flex-wrap:wrap;gap:5px;
+  padding:10px 16px 14px;border-top:1px solid var(--border);
+}
+.diag-cache-chip{
+  font-size:10px;font-weight:700;
+  padding:3px 7px;border-radius:20px;
+  background:var(--bg4);color:var(--t2);
+}
+.diag-cache-chip.up{background:rgba(34,197,94,.12);color:var(--green)}
+.diag-cache-chip.dn{background:rgba(239,68,68,.10);color:var(--red)}
+.diag-cache-age{font-weight:400;opacity:.7}

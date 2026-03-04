@@ -693,6 +693,38 @@ async function handleQuotes(req, res) {
   });
 }
 
+/* ─── GET /api/health ───────────────────────────────────────────── */
+function handleHealth(res) {
+  var avKey        = (process.env.ALPHA_VANTAGE_API_KEY || '').trim();
+  var cacheSymbols = Object.keys(QUOTE_CACHE);
+  var cacheEntries = cacheSymbols.slice(0, 60).map(function(sym) {
+    var e = QUOTE_CACHE[sym];
+    return {
+      symbol:     sym,
+      ageS:       Math.round((Date.now() - e.cachedAt) / 1000),
+      source:     e.data.source     || '?',
+      mktStatus:  e.data.marketStatus || '?',
+      confidence: e.data.confidence || '?'
+    };
+  });
+  sendJSON(res, 200, {
+    status:     'ok',
+    uptime:     Math.floor(process.uptime()),
+    memoryMB:   Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    quoteCache: { size: cacheSymbols.length, entries: cacheEntries },
+    alphaVantage: {
+      configured: !!avKey,
+      dailyLimit: 25,
+      note: avKey ? 'key configured' : 'ALPHA_VANTAGE_API_KEY not set — Yahoo-only mode'
+    },
+    newsCache: {
+      hasData:    !!_cache,
+      ageMinutes: _cacheTs ? Math.round((Date.now() - _cacheTs) / 60000) : null,
+      alertCount: (_cache && _cache.alerts) ? _cache.alerts.length : 0
+    }
+  });
+}
+
 /* ─── GET /api/status ───────────────────────────────────────────── */
 function handleStatus(res) {
   var urgentCount = _cache
@@ -813,6 +845,9 @@ var server = http.createServer(function(req, res) {
   }
   if (url === '/api/check-news' && req.method === 'POST') {
     return handleCheckNews(req, res);
+  }
+  if (url === '/api/health' && req.method === 'GET') {
+    return handleHealth(res);
   }
   if (url === '/api/status' && req.method === 'GET') {
     return handleStatus(res);
