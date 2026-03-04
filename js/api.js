@@ -169,17 +169,19 @@ function fetchFXRates() {
   var syms = 'GBPUSD=X,GBPEUR=X,GBPCHF=X,GBPHKD=X,GBPCNY=X';
   return quoteFetch(syms, 'regularMarketPrice')
     .then(function(data) {
-      if (!data || !data.quoteResponse || !data.quoteResponse.result) return;
+      if (!data || !data.quoteResponse || !data.quoteResponse.result) return false;
+      var updated = false;
       data.quoteResponse.result.forEach(function(q) {
         var p = q.regularMarketPrice;
         if (!p || p <= 0) return;
-        if (q.symbol === 'GBPUSD=X') FX_RATES.GBPUSD = p;
-        if (q.symbol === 'GBPEUR=X') FX_RATES.GBPEUR = p;
-        if (q.symbol === 'GBPCHF=X') FX_RATES.GBPCHF = p;
-        if (q.symbol === 'GBPHKD=X') FX_RATES.GBPHKD = p;
-        if (q.symbol === 'GBPCNY=X') FX_RATES.GBPCNY = p;
+        if (q.symbol === 'GBPUSD=X') { FX_RATES.GBPUSD = p; updated = true; }
+        if (q.symbol === 'GBPEUR=X') { FX_RATES.GBPEUR = p; updated = true; }
+        if (q.symbol === 'GBPCHF=X') { FX_RATES.GBPCHF = p; updated = true; }
+        if (q.symbol === 'GBPHKD=X') { FX_RATES.GBPHKD = p; updated = true; }
+        if (q.symbol === 'GBPCNY=X') { FX_RATES.GBPCNY = p; updated = true; }
       });
-    }).catch(function() {});
+      return updated;
+    }).catch(function() { return false; });
 }
 
 /* ══════════════════════════════════════════════
