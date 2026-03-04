@@ -160,11 +160,13 @@ function fetchFearGreed() {
 var FX_RATES = {
   GBPUSD: 1.27,   /* 1 GBP = X USD  */
   GBPEUR: 1.17,   /* 1 GBP = X EUR  */
-  GBPCHF: 1.14    /* 1 GBP = X CHF  */
+  GBPCHF: 1.14,   /* 1 GBP = X CHF  */
+  GBPHKD: 9.87,   /* 1 GBP = X HKD  */
+  GBPCNY: 9.25    /* 1 GBP = X CNY  */
 };
 
 function fetchFXRates() {
-  var syms = 'GBPUSD=X,GBPEUR=X,GBPCHF=X';
+  var syms = 'GBPUSD=X,GBPEUR=X,GBPCHF=X,GBPHKD=X,GBPCNY=X';
   return quoteFetch(syms, 'regularMarketPrice')
     .then(function(data) {
       if (!data || !data.quoteResponse || !data.quoteResponse.result) return;
@@ -174,6 +176,8 @@ function fetchFXRates() {
         if (q.symbol === 'GBPUSD=X') FX_RATES.GBPUSD = p;
         if (q.symbol === 'GBPEUR=X') FX_RATES.GBPEUR = p;
         if (q.symbol === 'GBPCHF=X') FX_RATES.GBPCHF = p;
+        if (q.symbol === 'GBPHKD=X') FX_RATES.GBPHKD = p;
+        if (q.symbol === 'GBPCNY=X') FX_RATES.GBPCNY = p;
       });
     }).catch(function() {});
 }
