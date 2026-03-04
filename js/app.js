@@ -43,11 +43,8 @@ document.addEventListener('DOMContentLoaded', function() {
     try { initWatchlistAutocomplete(); } catch(e) {}
     try { renderCascades(); }            catch(e) {}
     try { liveRefresh(); }               catch(e) {}
+    scheduleNextRefresh();
   }, 150);
-  // Auto-refresh every 90 seconds
-  APP.liveTimer = setInterval(function() {
-    try { liveRefresh(); } catch(e) {}
-  }, 90 * 1000);
   // Fetch AI-powered news analysis from the backend (non-blocking)
   setTimeout(function() {
     try { fetchAIAnalysis(); } catch(e) {}
@@ -177,9 +174,29 @@ function doRefresh() {
   } catch(e) {}
 }
 
+/* Adaptive auto-refresh: 30s during NYSE session, 90s outside */
+function scheduleNextRefresh() {
+  if (APP.liveTimer) clearTimeout(APP.liveTimer);
+  if (APP.settings && APP.settings.autorefresh === false) return;
+  var now = new Date();
+  var day = now.getUTCDay();
+  var tot = now.getUTCHours() * 60 + now.getUTCMinutes();
+  var marketOpen = day >= 1 && day <= 5 && tot >= 870 && tot < 1260;
+  var delay = marketOpen ? 30 * 1000 : 90 * 1000;
+  APP.liveTimer = setTimeout(function() {
+    try { liveRefresh(); } catch(e) {}
+    scheduleNextRefresh();
+  }, delay);
+}
+
 function liveRefresh() {
-  /* Fetch FX rates alongside everything else */
-  if (typeof fetchFXRates === 'function') fetchFXRates().catch(function() {});
+  /* Fetch FX rates and sector ETF data alongside everything else */
+  if (typeof fetchFXRates    === 'function') fetchFXRates().catch(function() {});
+  if (typeof fetchSectorData === 'function') {
+    fetchSectorData().then(function(updated) {
+      if (updated) { try { renderSectors(); } catch(e) {} }
+    }).catch(function() {});
+  }
 
   return Promise.all([
     fetchIndices().then(function(data) {
@@ -235,21 +252,22 @@ function liveRefresh() {
 ════════════════════════════════════════ */
 function updateMarketStatus() {
   var now = new Date();
-  var day = now.getUTCDay();
+  var day = now.getUTCDay();      /* 0=Sun … 6=Sat */
   var h   = now.getUTCHours();
   var m   = now.getUTCMinutes();
-  var tot = h * 60 + m;
+  var tot = h * 60 + m;           /* minutes since UTC midnight */
   var dot = document.getElementById('dot-status');
   var txt = document.getElementById('txt-status');
   if (!dot || !txt) return;
   dot.className = '';
+  /* NYSE/NASDAQ regular session: 09:30–16:00 ET = 14:30–21:00 UTC (ignoring DST edge) */
   if (day === 0 || day === 6) {
     dot.classList.add('closed'); txt.textContent = 'Weekend';
-  } else if (tot >= 840 && tot < 1260) {
+  } else if (tot >= 870 && tot < 1260) {   /* 14:30–21:00 UTC */
     dot.classList.add('open');   txt.textContent = 'US Market Open';
-  } else if (tot >= 720 && tot < 840) {
+  } else if (tot >= 540 && tot < 870) {    /* 09:00–14:30 UTC = 4:00–9:30 AM ET */
     dot.classList.add('pre');    txt.textContent = 'Pre-Market';
-  } else if (tot >= 1260 && tot < 1380) {
+  } else if (tot >= 1260 && tot < 1440) {  /* 21:00–24:00 UTC = 4:00–8:00 PM ET */
     dot.classList.add('pre');    txt.textContent = 'After-Hours';
   } else {
     dot.classList.add('closed'); txt.textContent = 'US Closed';
@@ -265,7 +283,8 @@ function updateTimestamp(isLive) {
   var t = new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
   if (isLive) {
     _lastRefreshTime = Date.now();
-    el.textContent = '● LIVE ' + t;
+    /* Clearly disclose that Yahoo Finance data is ~15 min delayed */
+    el.textContent = '● ' + t + ' · ~15min delayed';
     el.style.color = '#22c55e';
   } else {
     el.textContent = '○ Offline – estimated prices';
@@ -281,9 +300,9 @@ setInterval(function() {
   var ago = Math.round((Date.now() - _lastRefreshTime) / 1000);
   var t = new Date(_lastRefreshTime).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
   if (ago < 10) {
-    el.textContent = '● LIVE just now';
+    el.textContent = '● just now · ~15min delayed';
   } else if (ago < 90) {
-    el.textContent = '● LIVE ' + t + ' (' + ago + 's ago)';
+    el.textContent = '● ' + t + ' (' + ago + 's ago) · ~15min delayed';
   } else {
     el.textContent = '○ ' + t + ' (refreshing…)';
     el.style.color = '#f59e0b';

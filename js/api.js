@@ -183,6 +183,49 @@ function fetchFXRates() {
 }
 
 /* ══════════════════════════════════════════════
+   LIVE SECTOR PERFORMANCE
+   Each sector is mapped to a representative US ETF.
+   Prices are fetched via /api/quotes and the % change
+   overwrites the static fallback in SECTORS[].
+   ETFs: XLK Technology, ITA Defence, XLV Healthcare,
+         XLF Financials, XLI Industrials, XLB Materials,
+         XLY Consumer Disc, XLU Utilities, XLE Energy.
+══════════════════════════════════════════════ */
+var SECTOR_ETF_MAP = [
+  { idx: 0, sym: 'XLK'  },   /* Technology   */
+  { idx: 1, sym: 'ITA'  },   /* Defence       */
+  { idx: 2, sym: 'XLV'  },   /* Healthcare    */
+  { idx: 3, sym: 'XLF'  },   /* Financials    */
+  { idx: 4, sym: 'XLI'  },   /* Industrials   */
+  { idx: 5, sym: 'XLB'  },   /* Materials     */
+  { idx: 6, sym: 'XLY'  },   /* Consumer Disc */
+  { idx: 7, sym: 'XLU'  },   /* Utilities     */
+  { idx: 8, sym: 'XLE'  }    /* Energy        */
+];
+
+function fetchSectorData() {
+  var etfSyms = SECTOR_ETF_MAP.map(function(e) { return e.sym; }).join(',');
+  return quoteFetch(etfSyms, 'regularMarketChangePercent,regularMarketPrice')
+    .then(function(data) {
+      if (!data || !data.quoteResponse || !data.quoteResponse.result) return false;
+      var map = {};
+      data.quoteResponse.result.forEach(function(q) {
+        if (q.symbol && q.regularMarketChangePercent !== undefined) {
+          map[q.symbol] = parseFloat((q.regularMarketChangePercent || 0).toFixed(2));
+        }
+      });
+      var updated = false;
+      SECTOR_ETF_MAP.forEach(function(e) {
+        if (map[e.sym] !== undefined && SECTORS[e.idx]) {
+          SECTORS[e.idx].chg = map[e.sym];
+          updated = true;
+        }
+      });
+      return updated;
+    }).catch(function() { return false; });
+}
+
+/* ══════════════════════════════════════════════
    NOTE ON ALPHA VANTAGE (backup)
    Alpha Vantage FREE API is listed as an approved
    backup source.  It provides 25 req/day on the
