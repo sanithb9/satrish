@@ -294,6 +294,323 @@ function pickBestSource(yfQuote, avResult, symbol) {
   return 'yf';  /* Rule 3 — default to Yahoo */
 }
 
+/* ════════════════════════════════════════════════════════════════
+   QUOTE CACHE  (per-symbol, TTL-aware)
+   ─────────────────────────────────────────────────────────────
+   TTL shrinks when markets are open so traders always see fresh
+   data without hammering Yahoo Finance on every render tick.
+     open      →  30 s
+     pre/post  →  60 s
+     closed    → 300 s  (5 min)
+════════════════════════════════════════════════════════════════ */
+var QUOTE_CACHE = {};   /* { [SYM]: { data: QuoteData, cachedAt: number } } */
+
+function _cacheTTL(marketStatus) {
+  if (marketStatus === 'open')                     return 30  * 1000;
+  if (marketStatus === 'pre' || marketStatus === 'post') return 60  * 1000;
+  return 300 * 1000;
+}
+
+function quoteCacheGet(sym) {
+  var entry = QUOTE_CACHE[sym];
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > _cacheTTL(entry.data.marketStatus)) {
+    delete QUOTE_CACHE[sym];
+    return null;
+  }
+  var out = Object.assign({}, entry.data);
+  out.fromCache  = true;
+  out.cacheAgeSec = Math.round((Date.now() - entry.cachedAt) / 1000);
+  return out;
+}
+
+function quoteCacheSet(sym, data) {
+  QUOTE_CACHE[sym] = { data: data, cachedAt: Date.now() };
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RETRY FETCH
+   Wraps any function that returns Promise<T|null>.
+   Retries on null/throw with exponential backoff.
+════════════════════════════════════════════════════════════════ */
+function retryFetch(fn, maxAttempts, baseMs) {
+  maxAttempts = maxAttempts || 3;
+  baseMs      = baseMs      || 500;
+  return new Promise(function(resolve) {
+    var attempt = 0;
+    function tryOnce() {
+      var p;
+      try { p = fn(); } catch(e) { p = Promise.resolve(null); }
+      p.then(function(result) {
+        if (result !== null && result !== undefined) { resolve(result); return; }
+        attempt++;
+        if (attempt >= maxAttempts) { resolve(null); return; }
+        setTimeout(tryOnce, baseMs * Math.pow(2, attempt - 1));
+      }).catch(function() {
+        attempt++;
+        if (attempt >= maxAttempts) { resolve(null); return; }
+        setTimeout(tryOnce, baseMs * Math.pow(2, attempt - 1));
+      });
+    }
+    tryOnce();
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   EXCHANGE HOURS + MARKET STATUS DETECTION
+   ─────────────────────────────────────────────────────────────
+   All times are local-exchange wall-clock.
+   Lunch breaks (HK/China) handled via split-session hours.
+   Holiday calendar is simplified — a production app would query
+   a holiday API (e.g. Open Exchange Rates or exchangerate.host).
+════════════════════════════════════════════════════════════════ */
+var EXCHANGES = {
+  US:   { tz:'America/New_York', open:[9,30],  close:[16,0],  pre:[4,0],   post:[20,0],  delay:15 },
+  LSE:  { tz:'Europe/London',    open:[8,0],   close:[16,30], pre:null,    post:null,    delay:15 },
+  EUR:  { tz:'Europe/Berlin',    open:[9,0],   close:[17,30], pre:null,    post:null,    delay:15 },
+  HKEX: { tz:'Asia/Hong_Kong',   open:[9,30],  close:[16,0],  pre:null,    post:null,    delay:15,
+          lunch:[12,0,13,0] },   /* morning: 09:30-12:00, afternoon: 13:00-16:00 */
+  SSE:  { tz:'Asia/Shanghai',    open:[9,30],  close:[15,0],  pre:null,    post:null,    delay:0,
+          lunch:[11,30,13,0] },  /* morning: 09:30-11:30, afternoon: 13:00-15:00 */
+  SZSE: { tz:'Asia/Shanghai',    open:[9,30],  close:[15,0],  pre:null,    post:null,    delay:0,
+          lunch:[11,30,13,0] }
+};
+
+function getExchangeKey(sym) {
+  var u = sym.toUpperCase();
+  if (u.endsWith('.L'))                                                    return 'LSE';
+  if (u.endsWith('.DE') || u.endsWith('.PA') || u.endsWith('.AS') ||
+      u.endsWith('.MI') || u.endsWith('.BR') || u.endsWith('.MC') ||
+      u.endsWith('.LS') || u.endsWith('.HE'))                              return 'EUR';
+  if (u.endsWith('.HK'))                                                   return 'HKEX';
+  if (u.endsWith('.SS'))                                                   return 'SSE';
+  if (u.endsWith('.SZ'))                                                   return 'SZSE';
+  return 'US';
+}
+
+function _localTimeParts(tz) {
+  var parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23',
+    weekday: 'short', hour: 'numeric', minute: 'numeric'
+  }).formatToParts(new Date());
+  var m = {};
+  parts.forEach(function(p) { m[p.type] = p.value; });
+  return { weekday: m.weekday, h: parseInt(m.hour, 10), min: parseInt(m.minute, 10) };
+}
+
+/* Returns 'open' | 'pre' | 'post' | 'lunch' | 'closed' */
+function getMarketStatus(sym) {
+  var key = getExchangeKey(sym);
+  var ex  = EXCHANGES[key];
+  var t   = _localTimeParts(ex.tz);
+  var day = t.weekday;                /* 'Mon' … 'Sun' */
+  var now = t.h * 60 + t.min;        /* minutes since midnight */
+
+  if (day === 'Sat' || day === 'Sun') return 'closed';
+
+  var openMins  = ex.open[0]  * 60 + ex.open[1];
+  var closeMins = ex.close[0] * 60 + ex.close[1];
+
+  /* Lunch break (HK / China) */
+  if (ex.lunch) {
+    var lunchStart = ex.lunch[0] * 60 + ex.lunch[1];
+    var lunchEnd   = ex.lunch[2] * 60 + ex.lunch[3];
+    if (now >= lunchStart && now < lunchEnd) return 'lunch';
+  }
+
+  if (now >= openMins && now < closeMins) return 'open';
+
+  /* US pre / post market */
+  if (ex.pre) {
+    var preMins  = ex.pre[0]  * 60 + ex.pre[1];
+    var postMins = ex.post[0] * 60 + ex.post[1];
+    if (now >= preMins  && now < openMins)  return 'pre';
+    if (now >= closeMins && now < postMins) return 'post';
+  }
+
+  return 'closed';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DATA QUALITY VALIDATION
+   Reject obviously bad data: zero/negative price, absurd daily move
+════════════════════════════════════════════════════════════════ */
+function validateQuoteQuality(price, changePct) {
+  if (!price || price <= 0)             return false;
+  if (Math.abs(changePct || 0) > 60)   return false; /* >60% 1-day move → suspect */
+  return true;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   getAccurateQuote(symbol) — universal single-symbol pipeline
+   ─────────────────────────────────────────────────────────────
+   Returns QuoteData:
+   {
+     symbol, name, price, change, changePercent,
+     timestamp,        // ISO-8601 — when the price was recorded
+     fetchedAt,        // ISO-8601 — when we fetched from source
+     source,           // 'yahoo' | 'alphavantage' | 'cache'
+     isDelayed,        // true for most free feeds
+     delayMinutes,     // how many minutes the feed is delayed
+     marketStatus,     // 'open'|'pre'|'post'|'lunch'|'closed'
+     confidence,       // 'high'|'medium'|'low'
+     isStale,          // true if data age > 30 min
+     dataAgeMinutes,
+     fromCache,        // true if served from in-process cache
+     cacheAgeSec       // seconds since cached (only when fromCache)
+   }
+════════════════════════════════════════════════════════════════ */
+async function getAccurateQuote(symbol) {
+  var sym = symbol.toUpperCase().replace(/[^A-Z0-9.^=\-]/g, '');
+
+  /* ── Layer 0: in-process cache ── */
+  var cached = quoteCacheGet(sym);
+  if (cached) {
+    console.log('[quote] ' + sym + ': cache hit (' + cached.cacheAgeSec + 's old)');
+    return cached;
+  }
+
+  var marketStatus = getMarketStatus(sym);
+  var exKey        = getExchangeKey(sym);
+  var delayMins    = EXCHANGES[exKey].delay;
+  var fetchedAt    = new Date().toISOString();
+  var yfResult     = null;
+  var avResult     = null;
+
+  /* ── Layer 1: Yahoo Finance with retry ── */
+  var yfFields = [
+    'regularMarketPrice', 'regularMarketChange', 'regularMarketChangePercent',
+    'regularMarketTime',  'regularMarketVolume',
+    'shortName',          'longName',
+    'regularMarketOpen',  'regularMarketDayHigh', 'regularMarketDayLow',
+    'fiftyTwoWeekHigh',   'fiftyTwoWeekLow',
+    'marketCap',          'trailingPE'
+  ].join(',');
+
+  var yfRaw = await retryFetch(function() {
+    return yahooFetch(sym, yfFields);
+  }, 3, 500);
+
+  if (yfRaw && yfRaw.quoteResponse && yfRaw.quoteResponse.result &&
+      yfRaw.quoteResponse.result.length > 0) {
+    var q = yfRaw.quoteResponse.result[0];
+    if (validateQuoteQuality(q.regularMarketPrice, q.regularMarketChangePercent)) {
+      yfResult = {
+        price:   q.regularMarketPrice,
+        change:  q.regularMarketChange          || 0,
+        chgPct:  q.regularMarketChangePercent   || 0,
+        ts:      q.regularMarketTime ? new Date(q.regularMarketTime * 1000) : null,
+        name:    q.shortName || q.longName      || sym,
+        volume:  q.regularMarketVolume          || null,
+        open:    q.regularMarketOpen            || null,
+        high:    q.regularMarketDayHigh         || null,
+        low:     q.regularMarketDayLow          || null,
+        high52:  q.fiftyTwoWeekHigh             || null,
+        low52:   q.fiftyTwoWeekLow              || null,
+        mktCap:  q.marketCap                    || null,
+        pe:      q.trailingPE                   || null
+      };
+    }
+  }
+
+  /* ── Layer 2: Alpha Vantage — only when Yahoo fails ── */
+  if (!yfResult) {
+    avResult = await retryFetch(function() {
+      return alphaVantageFetch(sym);
+    }, 2, 1000);
+  }
+
+  /* ── Layer 3: pick best source (comparison only when both exist) ── */
+  var finalPrice, finalChange, finalChgPct, finalTs, finalSource, confidence;
+
+  if (yfResult && !avResult) {
+    finalPrice  = yfResult.price;  finalChange = yfResult.change;
+    finalChgPct = yfResult.chgPct; finalTs     = yfResult.ts;
+    finalSource = 'yahoo';         confidence  = 'high';
+
+  } else if (!yfResult && avResult) {
+    finalPrice  = avResult.price;  finalChange = null;
+    finalChgPct = avResult.chg;    finalTs     = avResult.ts;
+    finalSource = 'alphavantage';  confidence  = 'medium';
+
+  } else if (yfResult && avResult) {
+    var choice = pickBestSource(
+      { regularMarketPrice: yfResult.price,
+        regularMarketTime:  yfResult.ts ? Math.floor(yfResult.ts.getTime() / 1000) : 0 },
+      avResult, sym
+    );
+    if (choice === 'av') {
+      finalPrice  = avResult.price;  finalChange = null;
+      finalChgPct = avResult.chg;    finalTs     = avResult.ts;
+      finalSource = 'alphavantage';  confidence  = 'medium';
+    } else {
+      finalPrice  = yfResult.price;  finalChange = yfResult.change;
+      finalChgPct = yfResult.chgPct; finalTs     = yfResult.ts;
+      finalSource = 'yahoo';         confidence  = 'high';
+    }
+
+  } else {
+    /* Both sources failed */
+    console.warn('[quote] ' + sym + ': all sources exhausted');
+    return {
+      symbol: sym, error: 'No data available from any source',
+      marketStatus: marketStatus, fetchedAt: fetchedAt, confidence: 'none',
+      fromCache: false
+    };
+  }
+
+  /* ── Staleness check ── */
+  var tsMs           = finalTs ? finalTs.getTime() : 0;
+  var dataAgeMs      = Date.now() - tsMs;
+  var STALE_THRESHOLD = 30 * 60 * 1000; /* 30 min — reasonable for delayed feeds */
+  var isStale        = tsMs > 0 && dataAgeMs > STALE_THRESHOLD;
+  /* Lower confidence when stale */
+  if (isStale && confidence === 'high') confidence = 'medium';
+
+  var quoteData = {
+    symbol:         sym,
+    name:           yfResult ? yfResult.name : sym,
+    price:          parseFloat(finalPrice.toFixed(6)),
+    change:         finalChange !== null ? parseFloat(finalChange.toFixed(6)) : null,
+    changePercent:  parseFloat(finalChgPct.toFixed(4)),
+    /* Extended fields — present only when from Yahoo */
+    open:           yfResult ? yfResult.open   : null,
+    high:           yfResult ? yfResult.high   : null,
+    low:            yfResult ? yfResult.low    : null,
+    high52:         yfResult ? yfResult.high52 : null,
+    low52:          yfResult ? yfResult.low52  : null,
+    volume:         yfResult ? yfResult.volume : null,
+    marketCap:      yfResult ? yfResult.mktCap : null,
+    pe:             yfResult ? yfResult.pe     : null,
+    /* Metadata — always present */
+    timestamp:      finalTs ? finalTs.toISOString() : null,
+    fetchedAt:      fetchedAt,
+    source:         finalSource,
+    isDelayed:      delayMins > 0,
+    delayMinutes:   delayMins,
+    marketStatus:   marketStatus,
+    confidence:     confidence,
+    isStale:        isStale,
+    dataAgeMinutes: tsMs > 0 ? Math.round(dataAgeMs / 60000) : null,
+    fromCache:      false
+  };
+
+  quoteCacheSet(sym, quoteData);
+  console.log('[quote] ' + sym + ': ' + finalPrice.toFixed(2) +
+              ' (' + finalSource + ', ' + marketStatus + ', conf=' + confidence + ')');
+  return quoteData;
+}
+
+/* ─── GET /api/quote/:symbol ────────────────────────────────────── */
+async function handleSingleQuote(symbol, res) {
+  try {
+    var data = await getAccurateQuote(symbol);
+    sendJSON(res, data.error ? 404 : 200, data);
+  } catch(err) {
+    sendJSON(res, 502, { error: err.message });
+  }
+}
+
 /* ─── /api/quotes — 3-layer data pipeline ───────────────────────── */
 async function handleQuotes(req, res) {
   var parsed     = url_mod.parse(req.url, true);
@@ -484,6 +801,10 @@ var server = http.createServer(function(req, res) {
   }
 
   /* API routes */
+  var singleQuoteMatch = url.match(/^\/api\/quote\/([A-Za-z0-9.\-^=]+)$/);
+  if (singleQuoteMatch && req.method === 'GET') {
+    return handleSingleQuote(singleQuoteMatch[1], res);
+  }
   if (url === '/api/quotes' && req.method === 'GET') {
     return handleQuotes(req, res);
   }
