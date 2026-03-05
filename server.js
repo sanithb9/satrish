@@ -605,7 +605,7 @@ function alphaVantageFetch(symbol) {
 /* Returns null for symbols Stooq cannot serve (crypto, forex).            */
 var STOOQ_INDEX = {
   '^GSPC':'^spx',  '^SP500':'^spx',  '^IXIC':'^ndq',   '^DJI':'^dji',
-  '^RUT':'^rut',   '^FTSE':'^ftse',  '^N225':'^nkx',   '^GDAXI':'^dax',
+  '^RUT':'^rut',   '^N225':'^nkx',   '^GDAXI':'^dax',
   '^FCHI':'^cac',  '^HSI':'^hsi',    '^STOXX50E':'^sx5e',
   'GC=F':'gc.f',   'SI=F':'si.f',    'CL=F':'cl.f',    'NG=F':'ng.f',
   'ZC=F':'zc.f',   'ZS=F':'zs.f',
@@ -619,7 +619,8 @@ var STOOQ_INDEX = {
 var STOOQ_NO_DATA = new Set([
   'MC.PA', 'AIR.PA', 'OR.PA', 'BNP.PA', 'SAN.PA',   /* Euronext Paris — N/D on Stooq */
   'GLEN.L',                                           /* Glencore — N/D on Stooq */
-  '^FTSE'                                             /* FTSE 100 — confirmed N/D via live test */
+  '^FTSE',                                            /* FTSE 100 — confirmed N/D via live test */
+  '^VIX'                                              /* CBOE VIX — not available on Stooq */
 ]);
 
 function toStooqSymbol(yahooSym) {
@@ -1324,17 +1325,22 @@ async function handleQuotes(req, res) {
       var chunk   = needAlt.slice(si, si + STOOQ_BATCH);
       var sResult = await Promise.all(chunk.map(stooqFetch));
       var batchHits = 0;
+      /* Count only symbols that would have made an HTTP request (not pre-filtered) */
+      var batchAttempts = chunk.filter(function(sym) { return !!toStooqSymbol(sym); }).length;
       chunk.forEach(function(sym, i) {
         if (sResult[i]) { stooqMap[sym] = sResult[i]; batchHits++; }
       });
-      if (batchHits === 0) {
+      /* Only increment the empty-batch counter if real requests were attempted.
+         Pre-filtered symbols (STOOQ_NO_DATA, crypto, forex) returning null should
+         not be mistaken for Stooq rate-limiting. */
+      if (batchHits === 0 && batchAttempts > 0) {
         stooqEmptyBatches++;
         if (stooqEmptyBatches >= 2) {
           console.warn('[quotes] Stooq: 2 consecutive zero-result batches — stopping early at ' +
                        si + '/' + needAlt.length + ' (likely rate-limiting)');
           break;
         }
-      } else {
+      } else if (batchHits > 0) {
         stooqEmptyBatches = 0; /* reset on any success */
       }
     }
