@@ -594,22 +594,71 @@ var STOOQ_INDEX = {
   '^RUT':'^rut',   '^FTSE':'^ftse',  '^N225':'^nkx',   '^GDAXI':'^dax',
   '^FCHI':'^cac',  '^HSI':'^hsi',    '^STOXX50E':'^sx5e',
   'GC=F':'gc.f',   'SI=F':'si.f',    'CL=F':'cl.f',    'NG=F':'ng.f',
-  'ZC=F':'zc.f',   'ZS=F':'zs.f'
+  'ZC=F':'zc.f',   'ZS=F':'zs.f',
+  /* UK-primary stocks that Stooq carries under .uk, not .us */
+  'BP':'bp.uk',    'SHEL':'shel.uk', 'AZN':'azn.uk',
+  'GSK':'gsk.uk',  'RIO':'rio.uk',   'AAL':'aal.uk'
   /* ^VIX intentionally omitted — Stooq returns N/D for VIX */
 };
 
+/* Symbols that consistently return N/D on Stooq — skip immediately to save time */
+var STOOQ_NO_DATA = new Set([
+  'MC.PA', 'AIR.PA', 'OR.PA', 'BNP.PA', 'SAN.PA',   /* Euronext Paris — Stooq unreliable */
+  'GLEN.L'                                             /* Glencore — N/D on stooq */
+]);
+
 function toStooqSymbol(yahooSym) {
   var s = yahooSym.toUpperCase();
+  if (STOOQ_NO_DATA.has(s))         return null; /* known N/D — skip */
   if (STOOQ_INDEX[s])               return STOOQ_INDEX[s];
   if (s.endsWith('-USD'))            return null; /* crypto -> CoinGecko */
-  if (s.endsWith('=X'))             return null; /* forex  */
+  if (s.endsWith('=X'))             return null; /* forex  -> forexFetch */
   if (s.endsWith('.L'))             return s.slice(0, -2).toLowerCase() + '.uk';
   if (s.endsWith('.DE'))            return s.slice(0, -3).toLowerCase() + '.de';
   if (s.endsWith('.HK'))            return s.slice(0, -3).toLowerCase() + '.hk';
-  if (s.endsWith('.PA'))            return s.slice(0, -3).toLowerCase() + '.fr';
+  if (s.endsWith('.PA'))            return null; /* Euronext Paris unreliable on Stooq */
   if (s.endsWith('.AS'))            return s.slice(0, -3).toLowerCase() + '.nl';
   if (/^[A-Z]{1,5}$/.test(s))      return s.toLowerCase() + '.us';
   return null;
+}
+
+/* ─── Layer 5: Frankfurter.app (forex only, no auth, truly free) ─────── */
+/* Handles Yahoo =X pairs: GBPUSD=X, EURUSD=X, etc.                        */
+/* API: https://api.frankfurter.app/latest?from=GBP returns {rates:{...}}  */
+var _fxCache = {}; /* base → {rates, ts} — avoid repeated calls per request */
+
+function forexFetch(symbol) {
+  var m = symbol.toUpperCase().match(/^([A-Z]{3})([A-Z]{3})=X$/);
+  if (!m) return Promise.resolve(null);
+  var base  = m[1];
+  var quote = m[2];
+
+  /* Use in-memory cache to avoid calling the API once per forex pair per cycle */
+  var cached = _fxCache[base];
+  if (cached && Date.now() - cached.ts < 60000) { /* 1-min in-memory cache */
+    var rate = cached.rates[quote];
+    if (!rate) return Promise.resolve(null);
+    return Promise.resolve({ price: rate, chg: 0, ts: new Date(), _src: 'frankfurter' });
+  }
+
+  var url = 'https://api.frankfurter.app/latest?from=' + encodeURIComponent(base);
+  return curlJSON(url).then(function(data) {
+    if (!data || !data.rates) {
+      console.warn('[forex] null/bad response for ' + symbol + ' url=' + url);
+      return null;
+    }
+    _fxCache[base] = { rates: data.rates, ts: Date.now() };
+    var rate = data.rates[quote];
+    if (!rate) {
+      console.warn('[forex] no rate for ' + quote + ' in response (base=' + base + ')');
+      return null;
+    }
+    console.log('[forex] ' + symbol + ' = ' + rate + ' (frankfurter.app)');
+    return { price: rate, chg: 0, ts: new Date(), _src: 'frankfurter' };
+  }).catch(function(e) {
+    console.error('[forex] exception for ' + symbol + ': ' + e.message);
+    return null;
+  });
 }
 
 function stooqFetch(symbol) {
@@ -812,6 +861,9 @@ function pickBestSource(yfQuote, avResult, symbol) {
 ════════════════════════════════════════════════════════════════ */
 var QUOTE_CACHE = {};   /* { [SYM]: { data: QuoteData, cachedAt: number } } */
 
+/* When all live sources fail, serve the last known value for up to this long */
+var STALE_EMERGENCY_TTL = 4 * 60 * 60 * 1000; /* 4 hours */
+
 function _cacheTTL(marketStatus) {
   if (marketStatus === 'open')                     return 30  * 1000;
   if (marketStatus === 'pre' || marketStatus === 'post') return 60  * 1000;
@@ -821,13 +873,29 @@ function _cacheTTL(marketStatus) {
 function quoteCacheGet(sym) {
   var entry = QUOTE_CACHE[sym];
   if (!entry) return null;
-  if (Date.now() - entry.cachedAt > _cacheTTL(entry.data.marketStatus)) {
-    delete QUOTE_CACHE[sym];
-    return null;
+  /* Fresh enough — return without stale flag */
+  if (Date.now() - entry.cachedAt <= _cacheTTL(entry.data.marketStatus)) {
+    var out = Object.assign({}, entry.data);
+    out.fromCache   = true;
+    out.cacheAgeSec = Math.round((Date.now() - entry.cachedAt) / 1000);
+    return out;
   }
+  return null; /* expired — caller must fetch live; stale copy stays in QUOTE_CACHE for emergency use */
+}
+
+/* Last-resort: return the cached value even if expired, marked clearly as stale.
+   Called only when every live source has failed for a symbol.                */
+function quoteCacheGetStale(sym) {
+  var entry = QUOTE_CACHE[sym];
+  if (!entry) return null;
+  var ageMs = Date.now() - entry.cachedAt;
+  if (ageMs > STALE_EMERGENCY_TTL) return null; /* too old to be useful */
   var out = Object.assign({}, entry.data);
-  out.fromCache  = true;
-  out.cacheAgeSec = Math.round((Date.now() - entry.cachedAt) / 1000);
+  out.fromCache     = true;
+  out.staleFallback = true;
+  out.isStale       = true;
+  out.confidence    = 'low';
+  out.cacheAgeSec   = Math.round(ageMs / 1000);
   return out;
 }
 
@@ -1045,7 +1113,7 @@ async function getAccurateQuote(symbol) {
     }
   }
 
-  /* ── Layer 3: Stooq / CoinGecko — only when both Layer 1+2 fail ── */
+  /* ── Layer 3: Stooq / CoinGecko / Forex — only when both Layer 1+2 fail ── */
   var altResult = null;
   if (!yfResult && !avResult) {
     altResult = await stooqFetch(sym).then(function(r) {
@@ -1058,6 +1126,10 @@ async function getAccurateQuote(symbol) {
         if (r) { console.log('[quote] ' + sym + ': coingecko fallback ok price=' + r.price); }
         return r;
       }).catch(function() { return null; });
+    }
+
+    if (!altResult && sym.endsWith('=X')) {
+      altResult = await forexFetch(sym).catch(function() { return null; });
     }
   }
 
@@ -1098,8 +1170,14 @@ async function getAccurateQuote(symbol) {
     confidence  = 'medium';
 
   } else {
-    /* All sources exhausted */
-    console.warn('[quote] ' + sym + ': all sources exhausted (yahoo, alphavantage, stooq, coingecko)');
+    /* All live sources exhausted — try stale cache before returning an error */
+    var staleHit = quoteCacheGetStale(sym);
+    if (staleHit) {
+      console.warn('[quote] ' + sym + ': all sources failed — serving stale cache (age=' +
+                   staleHit.cacheAgeSec + 's src=' + (staleHit.source || '?') + ')');
+      return staleHit;
+    }
+    console.warn('[quote] ' + sym + ': all sources exhausted, no stale cache available');
     return {
       symbol: sym, error: 'No data available from any source',
       marketStatus: marketStatus, fetchedAt: fetchedAt, confidence: 'none',
@@ -1239,6 +1317,16 @@ async function handleQuotes(req, res) {
     cgMap = await coingeckoBatch(needCG);
   }
 
+  /* ── Layer 5: Frankfurter.app — forex pairs (=X), no auth needed ── */
+  var fxMap   = {};
+  var needFX  = needAlt.filter(function(s) { return !stooqMap[s] && !cgMap[s] && s.endsWith('=X'); });
+  if (needFX.length > 0) {
+    /* forexFetch shares an in-memory fx cache so repeated pairs hitting the same base
+       currency collapse into one real HTTP call */
+    var fxResults = await Promise.all(needFX.map(forexFetch));
+    needFX.forEach(function(sym, i) { if (fxResults[i]) fxMap[sym] = fxResults[i]; });
+  }
+
   /* ── Build the final result array ── */
   var finalResults = [];
   symbolList.forEach(function(sym) {
@@ -1246,6 +1334,7 @@ async function handleQuotes(req, res) {
     var avR = avMap[sym];
     var sqR = stooqMap[sym];
     var cgR = cgMap[sym];
+    var fxR = fxMap[sym];
 
     if (yfQ && yfQ.regularMarketPrice > 0) {
       /* Yahoo returned data — validate against AV if available */
@@ -1289,8 +1378,34 @@ async function handleQuotes(req, res) {
         regularMarketTime:          Math.floor(cgR.ts.getTime() / 1000),
         _dataSource:                'coingecko'
       });
+    } else if (fxR) {
+      console.log('[quotes] ' + sym + ': using Frankfurter forex rate');
+      finalResults.push({
+        symbol:                     sym,
+        regularMarketPrice:         fxR.price,
+        regularMarketChangePercent: 0,
+        regularMarketTime:          Math.floor(fxR.ts.getTime() / 1000),
+        _dataSource:                'frankfurter'
+      });
     } else {
-      console.warn('[quotes] ' + sym + ': no data from any source (yahoo, alphavantage, stooq, coingecko)');
+      /* Last resort — serve whatever is still in cache, even if it expired */
+      var staleQ = quoteCacheGetStale(sym);
+      if (staleQ) {
+        console.warn('[quotes] ' + sym + ': all live sources failed — stale cache (age=' +
+                     staleQ.cacheAgeSec + 's src=' + (staleQ.source || '?') + ')');
+        finalResults.push({
+          symbol:                     sym,
+          regularMarketPrice:         staleQ.price,
+          regularMarketChangePercent: staleQ.changePercent,
+          regularMarketTime:          staleQ.timestamp
+                                        ? Math.floor(new Date(staleQ.timestamp).getTime() / 1000)
+                                        : 0,
+          _dataSource:                'stale_cache',
+          _staleAgeSec:               staleQ.cacheAgeSec
+        });
+      } else {
+        console.warn('[quotes] ' + sym + ': no data from any source (yahoo, alphavantage, stooq, coingecko)');
+      }
     }
   });
 
