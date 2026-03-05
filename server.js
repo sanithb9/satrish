@@ -267,8 +267,12 @@ var CRUMB_TTL    = 4 * 60 * 60 * 1000;  /* 4 hours */
    sending any more requests.  This prevents the "crumb=Too%20Many%20Requests"
    cascade where every symbol URL carries a poisoned crumb and burns the AV
    quota trying to cover the resulting failures.                           */
-var YAHOO_429_COOLDOWN = 10 * 60 * 1000; /* 10 minutes */
-var _yahoo429Until     = 0;              /* epoch ms — 0 = not in cooldown */
+var YAHOO_429_COOLDOWN  = 10 * 60 * 1000; /* 10 minutes */
+var _yahoo429Until      = 0;
+var STOOQ_429_COOLDOWN  =  5 * 60 * 1000; /* 5 minutes */
+var _stooq429Until      = 0;
+var CG_429_COOLDOWN     =  5 * 60 * 1000; /* 5 minutes */
+var _cg429Until         = 0;
 
 function yahooIsBlocked() {
   if (_yahoo429Until && Date.now() < _yahoo429Until) {
@@ -280,9 +284,35 @@ function yahooIsBlocked() {
 
 function yahooSet429() {
   _yahoo429Until = Date.now() + YAHOO_429_COOLDOWN;
-  _yahooCrumb.value = null;   /* force crumb refresh after cooldown */
+  _yahooCrumb.value = null;
   console.error('[yahoo] 429 detected — circuit open for ' + (YAHOO_429_COOLDOWN / 60000) + ' min until ' +
                 new Date(_yahoo429Until).toISOString());
+}
+
+function stooqIsBlocked() {
+  if (_stooq429Until && Date.now() < _stooq429Until) {
+    return Math.ceil((_stooq429Until - Date.now()) / 1000);
+  }
+  _stooq429Until = 0;
+  return 0;
+}
+function stooqSet429() {
+  _stooq429Until = Date.now() + STOOQ_429_COOLDOWN;
+  console.error('[stooq] 429 detected — circuit open for ' + (STOOQ_429_COOLDOWN / 60000) + ' min until ' +
+                new Date(_stooq429Until).toISOString());
+}
+
+function cgIsBlocked() {
+  if (_cg429Until && Date.now() < _cg429Until) {
+    return Math.ceil((_cg429Until - Date.now()) / 1000);
+  }
+  _cg429Until = 0;
+  return 0;
+}
+function cgSet429() {
+  _cg429Until = Date.now() + CG_429_COOLDOWN;
+  console.error('[coingecko] 429 detected — circuit open for ' + (CG_429_COOLDOWN / 60000) + ' min until ' +
+                new Date(_cg429Until).toISOString());
 }
 
 function refreshYahooCrumb() {
@@ -560,11 +590,12 @@ function alphaVantageFetch(symbol) {
 /* Converts Yahoo Finance symbol format to Stooq format.                   */
 /* Returns null for symbols Stooq cannot serve (crypto, forex).            */
 var STOOQ_INDEX = {
-  '^GSPC':'^spx', '^SP500':'^spx', '^IXIC':'^ndq', '^DJI':'^dji',
-  '^RUT':'^rut',  '^VIX':'^vix',   '^FTSE':'^ukx', '^N225':'^nkx',
-  '^GDAXI':'^dax','^FCHI':'^cac',  '^HSI':'^hsi',  '^STOXX50E':'^sx5e',
-  'GC=F':'gc.f',  'SI=F':'si.f',   'CL=F':'cl.f',  'NG=F':'ng.f',
-  'ZC=F':'zc.f',  'ZS=F':'zs.f'
+  '^GSPC':'^spx',  '^SP500':'^spx',  '^IXIC':'^ndq',   '^DJI':'^dji',
+  '^RUT':'^rut',   '^FTSE':'^ftse',  '^N225':'^nkx',   '^GDAXI':'^dax',
+  '^FCHI':'^cac',  '^HSI':'^hsi',    '^STOXX50E':'^sx5e',
+  'GC=F':'gc.f',   'SI=F':'si.f',    'CL=F':'cl.f',    'NG=F':'ng.f',
+  'ZC=F':'zc.f',   'ZS=F':'zs.f'
+  /* ^VIX intentionally omitted — Stooq returns N/D for VIX */
 };
 
 function toStooqSymbol(yahooSym) {
@@ -582,33 +613,49 @@ function toStooqSymbol(yahooSym) {
 }
 
 function stooqFetch(symbol) {
+  if (stooqIsBlocked()) {
+    console.warn('[stooq] circuit open for ' + stooqIsBlocked() + 's — skipping ' + symbol);
+    return Promise.resolve(null);
+  }
   var stooqSym = toStooqSymbol(symbol);
   if (!stooqSym) return Promise.resolve(null);
   var url = 'https://stooq.com/q/l/?s=' + encodeURIComponent(stooqSym) + '&f=sd2t2ohlcv&h&e=csv';
   return new Promise(function(resolve) {
     execFile('curl', [
       '-s', '--max-time', '10', '-L',
+      '-w', '\n__STATUS__:%{http_code}',
       '-H', 'User-Agent: ' + _BROWSER_UA,
       url
     ], { maxBuffer: 64 * 1024, timeout: 12000 }, function(err, stdout, stderr) {
+      /* Split off HTTP status trailer */
+      var raw    = stdout || '';
+      var marker = raw.lastIndexOf('\n__STATUS__:');
+      var body   = (marker >= 0 ? raw.slice(0, marker) : raw);
+      var status = marker >= 0 ? raw.slice(marker + '\n__STATUS__:'.length).trim() : '?';
+
       if (err) {
         console.warn('[stooq] curl error sym=' + symbol + ' stooqSym=' + stooqSym +
-                     ' err=' + err.message + (stderr ? ' stderr=' + stderr.slice(0, 100) : ''));
+                     ' http=' + status + ' err=' + err.message +
+                     (stderr ? ' stderr=' + stderr.slice(0, 100) : ''));
         resolve(null); return;
       }
-      if (!stdout) {
-        console.warn('[stooq] empty response sym=' + symbol + ' stooqSym=' + stooqSym);
+      if (status === '429') {
+        stooqSet429();
         resolve(null); return;
       }
-      var lines = stdout.trim().split('\n');
+      if (!body || !body.trim()) {
+        console.warn('[stooq] empty response sym=' + symbol + ' stooqSym=' + stooqSym + ' http=' + status);
+        resolve(null); return;
+      }
+      var lines = body.trim().split('\n');
       if (lines.length < 2) {
-        console.warn('[stooq] only header line for sym=' + symbol + ' body=' + stdout.slice(0, 100));
+        console.warn('[stooq] only header line for sym=' + symbol + ' http=' + status + ' body=' + body.slice(0, 100));
         resolve(null); return;
       }
       var parts = lines[1].split(',');
       /* CSV: Symbol,Date,Time,Open,High,Low,Close,Volume */
       if (parts.length < 7 || parts[1] === 'N/D') {
-        console.warn('[stooq] N/D or short row sym=' + symbol + ' row=' + lines[1]);
+        console.warn('[stooq] N/D or short row sym=' + symbol + ' stooqSym=' + stooqSym + ' row=' + lines[1]);
         resolve(null); return;
       }
       var close = parseFloat(parts[6]);
@@ -631,7 +678,12 @@ var COINGECKO_IDS = {
   'DOT-USD':'polkadot',  'LTC-USD':'litecoin', 'MATIC-USD':'matic-network'
 };
 
+/* Single-symbol fetch (used by getAccurateQuote) */
 function coingeckoFetch(symbol) {
+  if (cgIsBlocked()) {
+    console.warn('[coingecko] circuit open for ' + cgIsBlocked() + 's — skipping ' + symbol);
+    return Promise.resolve(null);
+  }
   var id = COINGECKO_IDS[symbol.toUpperCase()];
   if (!id) return Promise.resolve(null);
   var url = 'https://api.coingecko.com/api/v3/simple/price' +
@@ -640,6 +692,11 @@ function coingeckoFetch(symbol) {
   return curlJSON(url).then(function(data) {
     if (!data) {
       console.warn('[coingecko] null response for ' + symbol + ' (id=' + id + ')');
+      return null;
+    }
+    /* 429 is returned as a JSON status object from CoinGecko */
+    if (data.status && data.status.error_code === 429) {
+      cgSet429();
       return null;
     }
     if (!data[id] || !data[id].usd) {
@@ -656,6 +713,49 @@ function coingeckoFetch(symbol) {
     console.error('[coingecko] exception for ' + symbol + ': ' + e.message);
     return null;
   });
+}
+
+/* Batch fetch — resolves {SYM: result} for all matchable symbols in one HTTP call */
+async function coingeckoBatch(symbols) {
+  if (cgIsBlocked()) {
+    console.warn('[coingecko] circuit open for ' + cgIsBlocked() + 's — skipping batch');
+    return {};
+  }
+  /* Map each symbol to its CoinGecko id, keep only known ones */
+  var idToSym = {};
+  symbols.forEach(function(sym) {
+    var id = COINGECKO_IDS[sym.toUpperCase()];
+    if (id) idToSym[id] = sym;
+  });
+  var ids = Object.keys(idToSym);
+  if (ids.length === 0) return {};
+
+  var url = 'https://api.coingecko.com/api/v3/simple/price' +
+            '?ids=' + encodeURIComponent(ids.join(',')) +
+            '&vs_currencies=usd&include_24hr_change=true';
+  var data = await curlJSON(url).catch(function() { return null; });
+
+  if (!data) {
+    console.warn('[coingecko] null batch response for ' + ids.join(','));
+    return {};
+  }
+  if (data.status && data.status.error_code === 429) {
+    cgSet429();
+    return {};
+  }
+
+  var result = {};
+  ids.forEach(function(id) {
+    var sym = idToSym[id];
+    if (data[id] && data[id].usd) {
+      result[sym] = { price: data[id].usd, chg: data[id].usd_24h_change || 0,
+                      ts: new Date(), _src: 'coingecko' };
+    } else {
+      console.warn('[coingecko] missing price for ' + sym + ' (id=' + id + ') in batch response');
+    }
+  });
+  console.log('[coingecko] batch: ' + Object.keys(result).length + '/' + ids.length + ' symbols ok');
+  return result;
 }
 
 /* ─── Layer 3: Validation logic ─────────────────────────────────── */
@@ -1113,22 +1213,30 @@ async function handleQuotes(req, res) {
   var needAlt = needBackup.filter(function(s) { return !avMap[s]; });
 
   /* ── Layer 3: Stooq (stocks/indices, no auth) ── */
+  /* Fire in sequential batches of 5 with a 300 ms gap to avoid Stooq rate limits.
+     Promise.all on 50+ symbols causes Stooq to drop connections (empty response). */
   var stooqMap = {};
-  if (needAlt.length > 0) {
-    var stooqResults = await Promise.all(needAlt.map(stooqFetch));
-    needAlt.forEach(function(sym, i) {
-      if (stooqResults[i]) stooqMap[sym] = stooqResults[i];
-    });
+  if (needAlt.length > 0 && !stooqIsBlocked()) {
+    var STOOQ_BATCH = 5;
+    for (var si = 0; si < needAlt.length; si += STOOQ_BATCH) {
+      if (si > 0) await new Promise(function(r) { setTimeout(r, 300); });
+      if (stooqIsBlocked()) {
+        console.warn('[quotes] Stooq circuit tripped mid-batch — stopping at ' + si + '/' + needAlt.length);
+        break;
+      }
+      var chunk   = needAlt.slice(si, si + STOOQ_BATCH);
+      var sResult = await Promise.all(chunk.map(stooqFetch));
+      chunk.forEach(function(sym, i) { if (sResult[i]) stooqMap[sym] = sResult[i]; });
+    }
+  } else if (stooqIsBlocked()) {
+    console.warn('[quotes] Stooq circuit open (' + stooqIsBlocked() + 's) — skipping');
   }
 
-  /* ── Layer 4: CoinGecko (crypto, no auth) ── */
-  var cgMap = {};
+  /* ── Layer 4: CoinGecko (crypto, no auth) — single batched request ── */
+  var cgMap  = {};
   var needCG = needAlt.filter(function(s) { return !stooqMap[s]; });
   if (needCG.length > 0) {
-    var cgResults = await Promise.all(needCG.map(coingeckoFetch));
-    needCG.forEach(function(sym, i) {
-      if (cgResults[i]) cgMap[sym] = cgResults[i];
-    });
+    cgMap = await coingeckoBatch(needCG);
   }
 
   /* ── Build the final result array ── */
@@ -1229,6 +1337,16 @@ function handleHealth(res) {
       configured: !!avKey,
       dailyLimit: 25,
       note: avKey ? 'key configured' : 'Not configured — set ALPHA_VANTAGE_API_KEY in Render environment variables'
+    },
+    stooq: {
+      circuitOpen:       stooqIsBlocked() > 0,
+      circuitCooldownSec: stooqIsBlocked() || 0,
+      circuitOpenUntil:  _stooq429Until ? new Date(_stooq429Until).toISOString() : null
+    },
+    coingecko: {
+      circuitOpen:       cgIsBlocked() > 0,
+      circuitCooldownSec: cgIsBlocked() || 0,
+      circuitOpenUntil:  _cg429Until ? new Date(_cg429Until).toISOString() : null
     },
     claude: {
       configured: !!claudeKey,
