@@ -244,6 +244,77 @@ async function testAlphaVantage() {
   }
 }
 
+/* ── Test 6b: Stooq ── */
+async function testStooq() {
+  section('Test 6b: Stooq fallback (no auth)');
+  var cases = [
+    { yahoo: 'AAPL',   stooq: 'aapl.us' },
+    { yahoo: '^GSPC',  stooq: '^spx' },
+    { yahoo: 'MSFT',   stooq: 'msft.us' }
+  ];
+  for (var c of cases) {
+    var url  = 'https://stooq.com/q/l/?s=' + encodeURIComponent(c.stooq) + '&f=sd2t2ohlcv&h&e=csv';
+    var data = await curlRaw(url);
+    if (data.body && data.body.includes(',') && !data.body.includes('N/D')) {
+      var lines = data.body.trim().split('\n');
+      var price = lines[1] ? lines[1].split(',')[6] : '?';
+      ok('Stooq ' + c.yahoo, 'price=' + price);
+    } else {
+      fail('Stooq ' + c.yahoo, 'response=' + (data.body || '').slice(0, 100));
+    }
+  }
+}
+
+/* ── Test 6c: CoinGecko ── */
+async function testCoinGecko() {
+  section('Test 6c: CoinGecko fallback (no auth, crypto)');
+  var url  = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true';
+  var data = await curlJSON(url);
+  if (data && data.bitcoin && data.bitcoin.usd) {
+    ok('CoinGecko BTC-USD', 'price=' + data.bitcoin.usd);
+  } else {
+    fail('CoinGecko BTC-USD', JSON.stringify(data || {}).slice(0, 150));
+  }
+  if (data && data.ethereum && data.ethereum.usd) {
+    ok('CoinGecko ETH-USD', 'price=' + data.ethereum.usd);
+  } else {
+    fail('CoinGecko ETH-USD', JSON.stringify(data || {}).slice(0, 150));
+  }
+}
+
+/* ── Test 6d: /api/diagnose ── */
+async function testDiagnoseEndpoint() {
+  section('Test 6d: /api/diagnose endpoint');
+  return new Promise(function(resolve) {
+    var req = http.get('http://localhost:3000/api/diagnose', function(res) {
+      var raw = '';
+      res.on('data', function(c) { raw += c; });
+      res.on('end', function() {
+        try {
+          var d = JSON.parse(raw);
+          Object.keys(d.steps || {}).forEach(function(step) {
+            var s = d.steps[step];
+            if (s.ok) {
+              ok('/api/diagnose step: ' + step, s.price ? 'price=' + s.price : (s.version || 'ok'));
+            } else {
+              fail('/api/diagnose step: ' + step, s.error || 'failed');
+            }
+          });
+          console.log('  Summary: ' + (d.summary || 'n/a'));
+        } catch(e) {
+          fail('/api/diagnose parse', e.message);
+        }
+        resolve();
+      });
+    });
+    req.on('error', function(e) {
+      fail('/api/diagnose (server not running?)', e.message);
+      resolve();
+    });
+    req.setTimeout(60000, function() { req.destroy(); resolve(); });
+  });
+}
+
 /* ── Test 7: /api/health ── */
 async function testHealthEndpoint() {
   section('Test 7: /api/health endpoint');
@@ -296,6 +367,9 @@ async function run() {
   await testCookieAndCrumb();
   await testYahooChartEndpoint();
   await testAlphaVantage();
+  await testStooq();
+  await testCoinGecko();
+  await testDiagnoseEndpoint();
   await testLocalServer();
   await testHealthEndpoint();
 
