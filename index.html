@@ -228,10 +228,10 @@
   <section id="page-portfolio" class="page">
     <div class="pg-hdr">
       <h1><i class="fas fa-wallet"></i> My Portfolio</h1>
-      <p>Upload or enter your investments — AI monitors them 24/7 against global events</p>
+      <p>Add stocks you own — AI gives you BUY MORE, HOLD, WATCH, or SELL NOW on each one</p>
     </div>
 
-    <!-- Portfolio Summary -->
+    <!-- AI Portfolio Summary -->
     <div id="port-summary"></div>
 
     <!-- Portfolio Tabs -->
@@ -240,7 +240,7 @@
         <i class="fas fa-list"></i> Holdings
       </button>
       <button class="port-tab-btn" data-tab="add" onclick="switchPortfolioTab('add')">
-        <i class="fas fa-plus-circle"></i> Add
+        <i class="fas fa-plus-circle"></i> Add Stock
       </button>
       <button class="port-tab-btn" data-tab="monitor" onclick="switchPortfolioTab('monitor')">
         <i class="fas fa-shield-alt"></i> AI Alerts
@@ -252,74 +252,41 @@
       <div id="port-empty" style="display:none">
         <i class="fas fa-wallet"></i>
         <h3>No holdings yet</h3>
-        <p>Go to the Add tab to upload a screenshot or enter manually</p>
+        <p>Tap <strong>Add Stock</strong> to search and add your investments</p>
       </div>
       <div id="port-holdings"></div>
     </div>
 
-    <!-- Tab: Add Holdings -->
+    <!-- Tab: Add Stock -->
     <div id="port-tab-add" class="port-tab-panel">
-
-      <!-- Image upload -->
-      <div class="tip" style="margin-bottom:12px">
-        <i class="fas fa-camera"></i>
-        <span><strong>Upload a screenshot</strong> of your broker portfolio — the AI will try to read your holdings automatically. Or enter them manually below.</span>
+      <div class="tip" style="margin-bottom:14px">
+        <i class="fas fa-brain"></i>
+        <span>Search for a stock you own — the AI will immediately show you whether to <strong>BUY MORE, HOLD, WATCH</strong> or <strong>SELL NOW</strong> based on live macro analysis.</span>
       </div>
-
-      <label for="port-img-input" style="display:block">
-        <div class="upload-zone">
-          <i class="fas fa-cloud-upload-alt"></i>
-          <p>Tap to upload portfolio screenshot</p>
-          <em>Supports: PNG, JPG, PDF screenshot — from any broker app</em>
+      <div class="search-row" style="position:relative;margin-bottom:10px">
+        <div class="search-box" style="position:relative;flex:1">
+          <i class="fas fa-search"></i>
+          <input id="ph-sym" type="text"
+                 placeholder="e.g. AAPL · LMT · VOD.L · SAP.DE · 0700.HK"
+                 autocapitalize="characters" autocomplete="off" autocorrect="off"
+                 onkeydown="if(event.key==='Enter')addSingleHolding()"
+                 style="padding-left:32px">
+          <div id="ph-sym-dropdown" class="ac-dropdown"></div>
         </div>
-      </label>
-      <input id="port-img-input" type="file" accept="image/*" style="display:none" onchange="handlePortfolioImageUpload(this)">
-
-      <img id="port-img-preview" src="" alt="Preview">
-
-      <div class="ocr-status" id="port-ocr-status">
-        <i class="fas fa-info-circle" style="margin-right:6px;color:var(--blue)"></i>
-        Upload an image or enter holdings manually below.
+        <button class="add-btn" onclick="addSingleHolding()"><i class="fas fa-plus"></i></button>
       </div>
-
-      <button id="port-ocr-btn" class="pri-btn" onclick="attemptOCR()" style="display:none;margin-bottom:10px">
-        <i class="fas fa-magic"></i> Extract Holdings from Image
-      </button>
-
-      <textarea id="port-ocr-result" class="port-textarea"
-        placeholder="Holdings will appear here after scan, or type manually:&#10;SYMBOL, SHARES, AVG_PRICE&#10;&#10;Example (US):&#10;NVDA, 10, 750&#10;AAPL, 25, 190&#10;&#10;Example (UK):&#10;VOD.L, 500, 72&#10;HSBA.L, 200, 620&#10;&#10;Example (Europe):&#10;SAP.DE, 8, 165&#10;AIR.PA, 5, 140&#10;&#10;Example (Hong Kong):&#10;0700.HK, 100, 320&#10;9988.HK, 200, 72&#10;&#10;Example (China A-share):&#10;600519.SS, 2, 1700&#10;000858.SZ, 20, 155"></textarea>
-
-      <button class="pri-btn" onclick="importHoldingsFromText()" style="margin-bottom:4px">
-        <i class="fas fa-file-import"></i> Import Holdings
-      </button>
-
-      <!-- Manual single entry -->
-      <div class="port-entry-form">
-        <h4><i class="fas fa-keyboard"></i> Add Single Holding</h4>
-        <div class="port-form-row" style="display:flex;gap:7px;margin-bottom:8px">
-          <div class="ac-input-wrap" style="flex:2;min-width:120px;position:relative">
-            <input id="ph-sym" type="text" placeholder="e.g. AAPL · VOD.L · SAP.DE · 0700.HK · 600519.SS"
-                   autocapitalize="characters" autocomplete="off" style="width:100%">
-            <div id="ph-sym-dropdown" class="ac-dropdown"></div>
-          </div>
-          <input id="ph-shares" type="number" placeholder="Shares" min="0.001" step="0.001" style="flex:1;min-width:70px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);color:var(--t1);padding:9px 10px;font-size:12px;outline:none">
-          <input id="ph-cost"   type="number" placeholder="Avg Price $" min="0.01" step="0.01" style="flex:1;min-width:80px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);color:var(--t1);padding:9px 10px;font-size:12px;outline:none">
-        </div>
-        <div id="ph-live-price"></div>
-        <div id="port-ocr-help" style="font-size:11px;color:var(--t3);margin:4px 0 8px">
-          <i class="fas fa-info-circle"></i> Select a stock from suggestions — price is fetched automatically. You only need to enter your avg purchase price.
-        </div>
-        <button class="pri-btn" onclick="addSingleHolding()">
-          <i class="fas fa-plus"></i> Add to Portfolio
-        </button>
-      </div>
+      <!-- Live price preview shown by autocomplete -->
+      <div id="ph-live-price" style="display:none;font-size:12px;color:var(--t2);
+           padding:8px 10px;background:var(--bg3);border-radius:var(--rs);
+           border:1px solid var(--border);margin-bottom:10px;
+           align-items:center;gap:6px;flex-wrap:wrap"></div>
     </div>
 
-    <!-- Tab: AI Monitor -->
+    <!-- Tab: AI Alerts -->
     <div id="port-tab-monitor" class="port-tab-panel">
       <div class="tip" style="margin-bottom:12px">
         <i class="fas fa-brain"></i>
-        <span><strong>Continuous AI monitoring</strong> — your portfolio is cross-referenced against all geopolitical events, macro cascades, and sector rotations in real time.</span>
+        <span><strong>Continuous AI monitoring</strong> — your holdings are cross-referenced against all geopolitical events, macro cascades, and sector rotations in real time.</span>
       </div>
       <div id="port-alerts-list"></div>
     </div>
