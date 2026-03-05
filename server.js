@@ -271,8 +271,8 @@ var YAHOO_429_COOLDOWN  = 10 * 60 * 1000; /* 10 minutes */
 var _yahoo429Until      = 0;
 var STOOQ_429_COOLDOWN  =  5 * 60 * 1000; /* 5 minutes */
 var _stooq429Until      = 0;
-var CG_429_COOLDOWN     =  5 * 60 * 1000; /* 5 minutes */
 var _cg429Until         = 0;
+var _cg429Count         = 0;  /* consecutive 429s — drives exponential backoff */
 
 function yahooIsBlocked() {
   if (_yahoo429Until && Date.now() < _yahoo429Until) {
@@ -310,9 +310,23 @@ function cgIsBlocked() {
   return 0;
 }
 function cgSet429() {
-  _cg429Until = Date.now() + CG_429_COOLDOWN;
-  console.error('[coingecko] 429 detected — circuit open for ' + (CG_429_COOLDOWN / 60000) + ' min until ' +
+  _cg429Count++;
+  /* Exponential backoff: 5 → 10 → 20 → 30 min cap.
+     Without this, a single request per cycle keeps resetting the timer and
+     crypto data stays dark indefinitely on a rate-limited IP. */
+  var cooldownMs = Math.min(5 * Math.pow(2, _cg429Count - 1), 30) * 60 * 1000;
+  _cg429Until = Date.now() + cooldownMs;
+  console.error('[coingecko] 429 #' + _cg429Count + ' — circuit open for ' +
+                Math.round(cooldownMs / 60000) + ' min (backoff x' + _cg429Count + ') until ' +
                 new Date(_cg429Until).toISOString());
+}
+function cgReset429() {
+  /* Call this when a CoinGecko request succeeds so the backoff counter resets */
+  if (_cg429Count > 0) {
+    console.log('[coingecko] circuit closed after ' + _cg429Count + ' consecutive 429s');
+    _cg429Count = 0;
+  }
+  _cg429Until = 0;
 }
 
 function refreshYahooCrumb() {
@@ -603,8 +617,9 @@ var STOOQ_INDEX = {
 
 /* Symbols that consistently return N/D on Stooq — skip immediately to save time */
 var STOOQ_NO_DATA = new Set([
-  'MC.PA', 'AIR.PA', 'OR.PA', 'BNP.PA', 'SAN.PA',   /* Euronext Paris — Stooq unreliable */
-  'GLEN.L'                                             /* Glencore — N/D on stooq */
+  'MC.PA', 'AIR.PA', 'OR.PA', 'BNP.PA', 'SAN.PA',   /* Euronext Paris — N/D on Stooq */
+  'GLEN.L',                                           /* Glencore — N/D on Stooq */
+  '^FTSE'                                             /* FTSE 100 — confirmed N/D via live test */
 ]);
 
 function toStooqSymbol(yahooSym) {
@@ -752,6 +767,7 @@ function coingeckoFetch(symbol) {
       console.warn('[coingecko] missing price for ' + symbol + ' (id=' + id + ') response=' + JSON.stringify(data).slice(0, 150));
       return null;
     }
+    cgReset429();
     return {
       price: data[id].usd,
       chg:   data[id].usd_24h_change || 0,
@@ -793,6 +809,7 @@ async function coingeckoBatch(symbols) {
     return {};
   }
 
+  cgReset429();
   var result = {};
   ids.forEach(function(id) {
     var sym = idToSym[id];
@@ -865,9 +882,9 @@ var QUOTE_CACHE = {};   /* { [SYM]: { data: QuoteData, cachedAt: number } } */
 var STALE_EMERGENCY_TTL = 4 * 60 * 60 * 1000; /* 4 hours */
 
 function _cacheTTL(marketStatus) {
-  if (marketStatus === 'open')                     return 30  * 1000;
-  if (marketStatus === 'pre' || marketStatus === 'post') return 60  * 1000;
-  return 300 * 1000;
+  if (marketStatus === 'open')                     return 120  * 1000; // was 30s — reduce Yahoo request frequency
+  if (marketStatus === 'pre' || marketStatus === 'post') return 300  * 1000; // was 60s
+  return 1800 * 1000; // was 300s (5min) — market closed, no need to poll frequently
 }
 
 function quoteCacheGet(sym) {
@@ -1291,20 +1308,35 @@ async function handleQuotes(req, res) {
   var needAlt = needBackup.filter(function(s) { return !avMap[s]; });
 
   /* ── Layer 3: Stooq (stocks/indices, no auth) ── */
-  /* Fire in sequential batches of 5 with a 300 ms gap to avoid Stooq rate limits.
-     Promise.all on 50+ symbols causes Stooq to drop connections (empty response). */
+  /* Batches of 3, 500 ms between batches.  Smaller batches avoid the connection-
+     drop rate-limit that was cutting off symbols at positions 15+ in the list.
+     Stop early if 2 consecutive batches return zero results (Stooq is blocking). */
   var stooqMap = {};
   if (needAlt.length > 0 && !stooqIsBlocked()) {
-    var STOOQ_BATCH = 5;
+    var STOOQ_BATCH      = 3;
+    var stooqEmptyBatches = 0;
     for (var si = 0; si < needAlt.length; si += STOOQ_BATCH) {
-      if (si > 0) await new Promise(function(r) { setTimeout(r, 300); });
+      if (si > 0) await new Promise(function(r) { setTimeout(r, 500); });
       if (stooqIsBlocked()) {
         console.warn('[quotes] Stooq circuit tripped mid-batch — stopping at ' + si + '/' + needAlt.length);
         break;
       }
       var chunk   = needAlt.slice(si, si + STOOQ_BATCH);
       var sResult = await Promise.all(chunk.map(stooqFetch));
-      chunk.forEach(function(sym, i) { if (sResult[i]) stooqMap[sym] = sResult[i]; });
+      var batchHits = 0;
+      chunk.forEach(function(sym, i) {
+        if (sResult[i]) { stooqMap[sym] = sResult[i]; batchHits++; }
+      });
+      if (batchHits === 0) {
+        stooqEmptyBatches++;
+        if (stooqEmptyBatches >= 2) {
+          console.warn('[quotes] Stooq: 2 consecutive zero-result batches — stopping early at ' +
+                       si + '/' + needAlt.length + ' (likely rate-limiting)');
+          break;
+        }
+      } else {
+        stooqEmptyBatches = 0; /* reset on any success */
+      }
     }
   } else if (stooqIsBlocked()) {
     console.warn('[quotes] Stooq circuit open (' + stooqIsBlocked() + 's) — skipping');
