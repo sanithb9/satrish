@@ -802,7 +802,6 @@ function initPortfolioAutocomplete() {
   var input    = document.getElementById('ph-sym');
   var dropdown = document.getElementById('ph-sym-dropdown');
   var priceDisp= document.getElementById('ph-live-price');
-  var priceInp = document.getElementById('ph-cost');
 
   if (!input || !dropdown) return;
 
@@ -812,28 +811,22 @@ function initPortfolioAutocomplete() {
     showPrice:  true,
     onSelect: function(stock, livePrice) {
       input.value = stock.sym;
-      /* Update live price display */
+      /* Show live price preview */
       if (priceDisp) {
         if (livePrice && livePrice.price) {
           var isUp = livePrice.chg >= 0;
           priceDisp.innerHTML =
-            '<i class="fas fa-circle" style="color:var(--green);font-size:7px"></i> Live: ' +
-            '<strong>' + getCurrencySymbol(stock.sym, stock.ex) + livePrice.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>' +
-            ' <span class="' + (isUp?'up':'dn') + '">' + (isUp?'+':'') + livePrice.chg.toFixed(2) + '%</span>' +
-            ' — <em style="color:var(--t3)">Enter avg price you paid below</em>';
+            '<i class="fas fa-circle" style="color:var(--green);font-size:7px"></i>&nbsp;' +
+            '<strong>' + getCurrencySymbol(stock.sym, stock.ex) +
+            livePrice.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>' +
+            '&nbsp;<span class="' + (isUp?'up':'dn') + '">' + (isUp?'+':'') + livePrice.chg.toFixed(2) + '%</span>' +
+            '&nbsp;— <em style="color:var(--t3)">' + stock.name + '</em>';
           priceDisp.style.display = 'flex';
-          /* Pre-fill avg cost with current price as default */
-          if (priceInp && !priceInp.value) {
-            priceInp.value = livePrice.price.toFixed(2);
-          }
         } else {
-          priceDisp.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:9px"></i> Fetching live price...';
+          priceDisp.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:9px"></i>&nbsp;Fetching live price…';
           priceDisp.style.display = 'flex';
         }
       }
-      /* Focus shares */
-      var sharesEl = document.getElementById('ph-shares');
-      if (sharesEl) sharesEl.focus();
     }
   });
 }
