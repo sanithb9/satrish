@@ -7,6 +7,7 @@ const url_mod   = require('url');
 const fs        = require('fs');
 const path      = require('path');
 const { execFile } = require('child_process');
+const os           = require('os');
 
 const { fetchLatestNews } = require('./newsMonitor');
 const { analyzeNews }     = require('./stockNewsAnalyzer');
@@ -183,36 +184,32 @@ function startScheduler(intervalMinutes) {
    Source: Yahoo Finance JSON quote endpoint (free, ~15 min delayed).
    Endpoint: /api/quotes?symbols=AAPL,^GSPC&fields=regularMarketPrice,...  */
 /* ─── HTTP fetch helpers ──────────────────────────────────────────────── */
-/* Two implementations:                                                      */
-/*   curlJSON  – uses system curl, honours https_proxy env var automatically */
-/*   nodeGet   – uses Node.js https.get, works on Render (direct internet)  */
-/* smartGet tries curl first; if it returns null it falls back to nodeGet.   */
-
 var _BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-function curlJSON(url) {
+/* curl-based fetch — honours https_proxy env var automatically */
+function curlJSON(url, extraArgs) {
   return new Promise(function(resolve) {
-    execFile('curl', [
-      '-s', '--max-time', '10', '-L',
+    var args = ['-s', '--max-time', '10', '-L',
       '-H', 'User-Agent: ' + _BROWSER_UA,
       '-H', 'Accept: application/json,*/*',
-      '-H', 'Accept-Language: en-US,en;q=0.9',
-      url
-    ], { maxBuffer: 4 * 1024 * 1024, timeout: 12000 }, function(err, stdout) {
+      '-H', 'Accept-Language: en-US,en;q=0.9'
+    ].concat(extraArgs || []).concat([url]);
+    execFile('curl', args, { maxBuffer: 4 * 1024 * 1024, timeout: 12000 }, function(err, stdout) {
       if (err || !stdout || !stdout.trim()) { resolve(null); return; }
       try { resolve(JSON.parse(stdout)); } catch(e) { resolve(null); }
     });
   });
 }
 
-function nodeGet(url) {
+/* Node.js https.get — direct internet, no proxy needed (used on Render) */
+function nodeGet(url, extraHeaders) {
   return new Promise(function(resolve) {
     var opts = url_mod.parse(url);
-    opts.headers = {
+    opts.headers = Object.assign({
       'User-Agent': _BROWSER_UA,
       'Accept': 'application/json,*/*',
       'Accept-Language': 'en-US,en;q=0.9'
-    };
+    }, extraHeaders || {});
     var req = https.get(opts, function(res) {
       if (res.statusCode < 200 || res.statusCode >= 300) { res.resume(); resolve(null); return; }
       var raw = '';
@@ -226,41 +223,103 @@ function nodeGet(url) {
   });
 }
 
-/* Try curl first (handles proxy env vars); fall back to Node.js https.get */
+/* Plain fetch without cookies (Alpha Vantage, other non-Yahoo APIs) */
 function smartGet(url) {
-  return curlJSON(url).then(function(data) {
-    if (data !== null) return data;
-    return nodeGet(url);
+  return curlJSON(url).then(function(d) { return d !== null ? d : nodeGet(url); });
+}
+
+/* ─── Yahoo Finance cookie + crumb session ────────────────────────────── */
+/* Since 2024 Yahoo Finance requires a valid A3 cookie and crumb token for  */
+/* server-side API calls.  We obtain them by:                               */
+/*   1. GET https://fc.yahoo.com  → saves A3/A1 cookies                    */
+/*   2. GET /v1/test/getcrumb     → returns the crumb string                */
+/* Both are cached for 4 hours and refreshed automatically.                  */
+var _COOKIE_JAR  = path.join(os.tmpdir(), 'yf_cookies_' + process.pid + '.txt');
+var _yahooCrumb  = { value: null, ts: 0 };
+var CRUMB_TTL    = 4 * 60 * 60 * 1000;  /* 4 hours */
+
+function refreshYahooCrumb() {
+  return new Promise(function(resolve) {
+    /* Step 1 — visit fc.yahoo.com to collect session cookies */
+    execFile('curl', [
+      '-s', '--max-time', '15', '-L',
+      '-c', _COOKIE_JAR,
+      '-H', 'User-Agent: ' + _BROWSER_UA,
+      '-H', 'Accept: text/html,*/*',
+      'https://fc.yahoo.com'
+    ], { timeout: 16000 }, function() {
+      /* Step 2 — exchange cookies for a crumb */
+      execFile('curl', [
+        '-s', '--max-time', '10',
+        '-b', _COOKIE_JAR, '-c', _COOKIE_JAR,
+        '-H', 'User-Agent: ' + _BROWSER_UA,
+        '-H', 'Accept: */*',
+        'https://query1.finance.yahoo.com/v1/test/getcrumb'
+      ], { timeout: 12000 }, function(err, stdout) {
+        var crumb = (stdout || '').trim();
+        if (!err && crumb && crumb.length > 0 && crumb[0] !== '<' && crumb[0] !== '{') {
+          _yahooCrumb.value = crumb;
+          _yahooCrumb.ts    = Date.now();
+          console.log('[yahoo] crumb ok (' + crumb.length + ' chars)');
+          resolve(crumb);
+        } else {
+          console.log('[yahoo] crumb failed:', err ? err.message : (crumb || 'empty'));
+          resolve(null);
+        }
+      });
+    });
   });
 }
 
+function getYahooCrumb() {
+  if (_yahooCrumb.value && (Date.now() - _yahooCrumb.ts) < CRUMB_TTL) {
+    return Promise.resolve(_yahooCrumb.value);
+  }
+  return refreshYahooCrumb();
+}
+
 /* ─── Yahoo Finance chart endpoint (per-symbol) ───────────────────────── */
-/* The /v7/finance/quote batch endpoint returns 429.                        */
-/* The /v8/finance/chart/{sym} endpoint works for all symbol types:         */
-/* equities, ETFs, indices (^GSPC), futures (GC=F), crypto, FX (GBPUSD=X). */
-/* Tries query1 first, then query2 as fallback (some IP ranges hit 429).   */
+/* Uses cookie jar + crumb for authenticated requests (required since 2024) */
 function yahooChartFetch(symbol) {
-  var path = '/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=1d&range=1d';
-  var url1 = 'https://query1.finance.yahoo.com' + path;
-  var url2 = 'https://query2.finance.yahoo.com' + path;
-  return smartGet(url1).then(function(data) {
-    if (data && data.chart && data.chart.result) return data;
-    return smartGet(url2);  /* fallback to query2 host */
+  return getYahooCrumb().then(function(crumb) {
+    var qs   = '?interval=1d&range=1d' + (crumb ? '&crumb=' + encodeURIComponent(crumb) : '');
+    var path = '/v8/finance/chart/' + encodeURIComponent(symbol) + qs;
+    /* Build cookie args — include jar only if it was written successfully */
+    var cookieArgs = [];
+    try {
+      if (_yahooCrumb.value && fs.existsSync(_COOKIE_JAR)) {
+        cookieArgs = ['-b', _COOKIE_JAR];
+      }
+    } catch(e) {}
+    /* Try query1, fall back to query2 */
+    return curlJSON('https://query1.finance.yahoo.com' + path, cookieArgs)
+      .then(function(d) {
+        if (d && d.chart && d.chart.result) return d;
+        return curlJSON('https://query2.finance.yahoo.com' + path, cookieArgs);
+      })
+      .then(function(d) {
+        /* If crumb is stale Yahoo returns { chart: { error: { code: 'Unauthorized' } } } */
+        if (d && d.chart && d.chart.error &&
+            String(d.chart.error.code).toLowerCase().includes('unauthorized')) {
+          _yahooCrumb.value = null;  /* force refresh on next call */
+          return null;
+        }
+        return d;
+      });
   }).then(function(data) {
     if (!data || !data.chart || !data.chart.result || !data.chart.result[0]) return null;
     var meta  = data.chart.result[0].meta;
     var price = meta.regularMarketPrice;
     var prev  = meta.chartPreviousClose;
     if (!price || price <= 0) return null;
-    var chg   = (prev && prev > 0) ? ((price - prev) / prev * 100) : 0;
-    var chgAbs= (prev && prev > 0) ? (price - prev) : 0;
+    var chg    = (prev && prev > 0) ? ((price - prev) / prev * 100) : 0;
+    var chgAbs = (prev && prev > 0) ? (price - prev) : 0;
     return {
       symbol:                     symbol,
       regularMarketPrice:         price,
       regularMarketChange:        parseFloat(chgAbs.toFixed(4)),
       regularMarketChangePercent: parseFloat(chg.toFixed(4)),
       regularMarketTime:          meta.regularMarketTime || Math.floor(Date.now() / 1000),
-      /* extra fields available for getAccurateQuote */
       shortName:           meta.longName  || meta.shortName  || symbol,
       regularMarketVolume: meta.regularMarketVolume || null,
       regularMarketOpen:   meta.regularMarketOpen   || null,
@@ -771,6 +830,11 @@ function handleHealth(res) {
     uptime:     Math.floor(process.uptime()),
     memoryMB:   Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
     quoteCache: { size: cacheSymbols.length, entries: cacheEntries },
+    yahoo: {
+      crumbOk:  !!_yahooCrumb.value,
+      crumbAgeMinutes: _yahooCrumb.ts ? Math.round((Date.now() - _yahooCrumb.ts) / 60000) : null,
+      note: _yahooCrumb.value ? 'authenticated (crumb + cookie session active)' : 'no crumb — Yahoo requests will fail'
+    },
     alphaVantage: {
       configured: !!avKey,
       dailyLimit: 25,
@@ -936,6 +1000,10 @@ var server = http.createServer(function(req, res) {
 
 server.listen(PORT, function() {
   console.log('StockSense AI running → http://localhost:' + PORT);
+  /* Obtain Yahoo Finance crumb on startup so first data fetch is authenticated */
+  refreshYahooCrumb().catch(function() {});
+  /* Refresh crumb every 4 hours to prevent expiry */
+  setInterval(function() { refreshYahooCrumb().catch(function() {}); }, CRUMB_TTL);
   /* Start server-side scheduler from env (default 60 min) */
   var envInterval = parseInt(process.env.SCHEDULE_INTERVAL || '60', 10);
   startScheduler(isNaN(envInterval) ? 60 : envInterval);
