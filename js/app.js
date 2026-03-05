@@ -198,27 +198,95 @@ function removeWatchlist(sym) {
 /* ════════════════════════════════════════
    LIVE DATA REFRESH
 ════════════════════════════════════════ */
-function doRefresh() {
-  try {
-    var btn = document.getElementById('btn-refresh');
-    if (btn) btn.classList.add('spin');
-    liveRefresh().then(function() {
-      if (btn) btn.classList.remove('spin');
-    }).catch(function() {
-      if (btn) btn.classList.remove('spin');
-    });
-  } catch(e) {}
-}
 
-/* Adaptive auto-refresh: 30s during NYSE session, 90s outside */
-function scheduleNextRefresh() {
-  if (APP.liveTimer) clearTimeout(APP.liveTimer);
-  if (APP.settings && APP.settings.autorefresh === false) return;
+/* Refresh cooldown: how long the button stays disabled after a refresh.
+   Matches server cache TTLs so clicking again before cache expires is pointless. */
+var _refreshCooldownTimer = null;
+var _refreshCdInterval    = null;
+
+function _marketIsOpen() {
   var now = new Date();
   var day = now.getUTCDay();
   var tot = now.getUTCHours() * 60 + now.getUTCMinutes();
-  var marketOpen = day >= 1 && day <= 5 && tot >= 870 && tot < 1260;
-  var delay = marketOpen ? 30 * 1000 : 90 * 1000;
+  return day >= 1 && day <= 5 && tot >= 870 && tot < 1260;
+}
+
+function _startRefreshCooldown(overrideSec) {
+  var btn = document.getElementById('btn-refresh');
+  if (!btn) return;
+
+  /* Use server-reported Yahoo cooldown if longer than our own minimum */
+  var serverCd = (window._quoteMeta && window._quoteMeta.cooldownSec) || 0;
+  var minCd    = _marketIsOpen() ? 120 : 300;   /* 2 min open, 5 min closed */
+  var totalSec = Math.max(overrideSec || 0, serverCd, minCd);
+
+  /* Clear any previous countdown */
+  if (_refreshCooldownTimer) clearTimeout(_refreshCooldownTimer);
+  if (_refreshCdInterval)    clearInterval(_refreshCdInterval);
+
+  btn.disabled = true;
+  btn.classList.add('cooldown');
+  btn.classList.remove('spin');
+
+  var remaining = totalSec;
+  function _tick() {
+    if (!btn) return;
+    var m = Math.floor(remaining / 60);
+    var s = remaining % 60;
+    btn.setAttribute('data-cd', m > 0 ? m + 'm' : s + 's');
+    btn.title = 'Next refresh in ' + (m > 0 ? m + 'm ' + (s > 0 ? s + 's' : '') : s + 's');
+  }
+  _tick();
+  _refreshCdInterval = setInterval(function() {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(_refreshCdInterval);
+      _refreshCdInterval = null;
+      btn.disabled = false;
+      btn.classList.remove('cooldown');
+      btn.removeAttribute('data-cd');
+      btn.title = 'Refresh data';
+    } else {
+      _tick();
+    }
+  }, 1000);
+
+  /* Safety fallback in case interval drifts */
+  _refreshCooldownTimer = setTimeout(function() {
+    clearInterval(_refreshCdInterval);
+    _refreshCdInterval = null;
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('cooldown');
+      btn.removeAttribute('data-cd');
+      btn.title = 'Refresh data';
+    }
+  }, (totalSec + 2) * 1000);
+
+  /* Reset captured meta so next refresh recalculates from fresh server response */
+  window._quoteMeta = null;
+}
+
+function doRefresh() {
+  var btn = document.getElementById('btn-refresh');
+  if (btn && btn.disabled) return;   /* still cooling down — ignore click */
+  try {
+    if (btn) btn.classList.add('spin');
+    liveRefresh().then(function() {
+      _startRefreshCooldown();
+    }).catch(function() {
+      if (btn) { btn.classList.remove('spin'); }
+    });
+  } catch(e) {
+    if (btn) btn.classList.remove('spin');
+  }
+}
+
+/* Adaptive auto-refresh: 120s during NYSE session, 300s outside (safe for Yahoo) */
+function scheduleNextRefresh() {
+  if (APP.liveTimer) clearTimeout(APP.liveTimer);
+  if (APP.settings && APP.settings.autorefresh === false) return;
+  var delay = _marketIsOpen() ? 120 * 1000 : 300 * 1000;
   APP.liveTimer = setTimeout(function() {
     try { liveRefresh(); } catch(e) {}
     scheduleNextRefresh();

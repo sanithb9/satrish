@@ -36,7 +36,18 @@ function quoteFetch(symbols, fields) {
   fields = fields || 'regularMarketPrice,regularMarketChangePercent,regularMarketTime';
   var url = '/api/quotes?symbols=' + encodeURIComponent(symbols) +
             '&fields='  + encodeURIComponent(fields);
-  return safeFetch(url, 9000);
+  return safeFetch(url, 9000).then(function(data) {
+    /* Capture server-reported Yahoo cooldown so doRefresh can gate the button */
+    if (data && data._meta && typeof data._meta.cooldownSec === 'number') {
+      var prev = (window._quoteMeta && window._quoteMeta.cooldownSec) || 0;
+      window._quoteMeta = {
+        cooldownSec: Math.max(prev, data._meta.cooldownSec),
+        fromCache:   (data._meta.fromCache || 0),
+        live:        (data._meta.live      || 0)
+      };
+    }
+    return data;
+  });
 }
 
 /* ══════════════════════════════════════════════
