@@ -262,6 +262,29 @@ var _COOKIE_JAR  = path.join(os.tmpdir(), 'yf_cookies_' + process.pid + '.txt');
 var _yahooCrumb  = { value: null, ts: 0 };
 var CRUMB_TTL    = 4 * 60 * 60 * 1000;  /* 4 hours */
 
+/* ── Yahoo 429 circuit-breaker ──────────────────────────────────────────
+   When Yahoo returns 429 we back off for YAHOO_429_COOLDOWN ms before
+   sending any more requests.  This prevents the "crumb=Too%20Many%20Requests"
+   cascade where every symbol URL carries a poisoned crumb and burns the AV
+   quota trying to cover the resulting failures.                           */
+var YAHOO_429_COOLDOWN = 10 * 60 * 1000; /* 10 minutes */
+var _yahoo429Until     = 0;              /* epoch ms — 0 = not in cooldown */
+
+function yahooIsBlocked() {
+  if (_yahoo429Until && Date.now() < _yahoo429Until) {
+    return Math.ceil((_yahoo429Until - Date.now()) / 1000);  /* seconds remaining */
+  }
+  _yahoo429Until = 0;
+  return 0;
+}
+
+function yahooSet429() {
+  _yahoo429Until = Date.now() + YAHOO_429_COOLDOWN;
+  _yahooCrumb.value = null;   /* force crumb refresh after cooldown */
+  console.error('[yahoo] 429 detected — circuit open for ' + (YAHOO_429_COOLDOWN / 60000) + ' min until ' +
+                new Date(_yahoo429Until).toISOString());
+}
+
 function refreshYahooCrumb() {
   return new Promise(function(resolve) {
     /* Step 1 — visit finance.yahoo.com to collect session cookies on .yahoo.com domain.
@@ -294,24 +317,43 @@ function refreshYahooCrumb() {
                     ' cookies=' + cookieCount);
       }
 
-      /* Step 2 — exchange cookies for a crumb */
+      /* Step 2 — exchange cookies for a crumb.
+         Append HTTP status so we can detect 429 before poisoning _yahooCrumb. */
       execFile('curl', [
         '-s', '--max-time', '10',
         '-b', _COOKIE_JAR, '-c', _COOKIE_JAR,
         '-H', 'User-Agent: ' + _BROWSER_UA,
         '-H', 'Accept: */*',
         '-H', 'Referer: https://finance.yahoo.com',
+        '-w', '\n__STATUS__:%{http_code}',
         'https://query1.finance.yahoo.com/v1/test/getcrumb'
       ], { timeout: 12000 }, function(err, stdout, stderr) {
-        var crumb = (stdout || '').trim();
-        if (!err && crumb && crumb.length > 0 && crumb[0] !== '<' && crumb[0] !== '{') {
-          _yahooCrumb.value = crumb;
+        var raw    = stdout || '';
+        var marker = raw.lastIndexOf('\n__STATUS__:');
+        var body   = (marker >= 0 ? raw.slice(0, marker) : raw).trim();
+        var status = marker >= 0 ? raw.slice(marker + '\n__STATUS__:'.length).trim() : '?';
+
+        /* A valid crumb is a short token with no whitespace — never an HTTP error message */
+        var isValidCrumb = !err &&
+                           body.length > 0 &&
+                           body.length < 64 &&
+                           !/\s/.test(body) &&        /* no spaces → rejects "Too Many Requests" */
+                           body[0] !== '<' &&
+                           body[0] !== '{';
+
+        if (status === '429' || body.toLowerCase().includes('too many')) {
+          console.error('[yahoo] crumb endpoint 429 — triggering circuit breaker');
+          yahooSet429();
+          resolve(null);
+        } else if (isValidCrumb) {
+          _yahooCrumb.value = body;
           _yahooCrumb.ts    = Date.now();
-          console.log('[yahoo] crumb ok (' + crumb.length + ' chars)');
-          resolve(crumb);
+          console.log('[yahoo] crumb ok (' + body.length + ' chars) http=' + status);
+          resolve(body);
         } else {
-          console.error('[yahoo] crumb FAILED err=' + (err ? err.message : 'none') +
-                        ' crumb=' + JSON.stringify(crumb.slice(0, 120)) +
+          console.error('[yahoo] crumb FAILED http=' + status +
+                        ' err=' + (err ? err.message : 'none') +
+                        ' body=' + JSON.stringify(body.slice(0, 120)) +
                         (stderr ? ' stderr=' + stderr.slice(0, 200) : ''));
           resolve(null);
         }
@@ -330,6 +372,12 @@ function getYahooCrumb() {
 /* ─── Yahoo Finance chart endpoint (per-symbol) ───────────────────────── */
 /* Uses cookie jar + crumb for authenticated requests (required since 2024) */
 function yahooChartFetch(symbol) {
+  /* Check circuit-breaker before even attempting a request */
+  var blocked = yahooIsBlocked();
+  if (blocked) {
+    console.warn('[yahoo] circuit open for ' + blocked + 's — skipping ' + symbol);
+    return Promise.resolve(null);
+  }
   return getYahooCrumb().then(function(crumb) {
     var qs   = '?interval=1d&range=1d' + (crumb ? '&crumb=' + encodeURIComponent(crumb) : '');
     var path = '/v8/finance/chart/' + encodeURIComponent(symbol) + qs;
@@ -340,12 +388,58 @@ function yahooChartFetch(symbol) {
         cookieArgs = ['-b', _COOKIE_JAR];
       }
     } catch(e) {}
-    /* Try query1, fall back to query2 */
+    /* Try query1, fall back to query2.
+       If either returns 429 trip the circuit-breaker immediately — no point
+       sending query2 (same IP, same rate-limit) or touching the other symbols. */
     var q1url = 'https://query1.finance.yahoo.com' + path;
     var q2url = 'https://query2.finance.yahoo.com' + path;
-    return curlJSON(q1url, cookieArgs)
+
+    /* Wrap curlJSON to intercept 429 bodies before they reach the JSON parser */
+    function chartFetch(url) {
+      /* We rely on curlJSON's built-in status trailer to spot 429s */
+      return new Promise(function(resolve) {
+        var args = [
+          '-s', '--max-time', '10', '-L',
+          '-w', '\n__STATUS__:%{http_code}',
+          '-H', 'User-Agent: ' + _BROWSER_UA,
+          '-H', 'Accept: application/json,*/*',
+          '-H', 'Accept-Language: en-US,en;q=0.9',
+          '-H', 'Referer: https://finance.yahoo.com'
+        ].concat(cookieArgs).concat([url]);
+        execFile('curl', args, { maxBuffer: 4 * 1024 * 1024, timeout: 12000 }, function(err, stdout, stderr) {
+          var raw    = stdout || '';
+          var marker = raw.lastIndexOf('\n__STATUS__:');
+          var body   = marker >= 0 ? raw.slice(0, marker) : raw;
+          var status = marker >= 0 ? raw.slice(marker + '\n__STATUS__:'.length).trim() : '?';
+
+          if (status === '429' || (!err && body.trim() === 'Too Many Requests')) {
+            console.error('[yahoo] 429 on chart url=' + url.slice(0, 100) + ' — tripping circuit');
+            yahooSet429();
+            resolve(null); return;
+          }
+          if (err) {
+            console.error('[yahoo] curl error url=' + url.slice(0, 100) + ' ' + err.message +
+                          (stderr ? ' stderr=' + stderr.slice(0, 150) : ''));
+            resolve(null); return;
+          }
+          if (!body || !body.trim()) {
+            console.warn('[yahoo] empty body url=' + url.slice(0, 100) + ' http=' + status);
+            resolve(null); return;
+          }
+          try { resolve(JSON.parse(body)); }
+          catch(e) {
+            console.warn('[yahoo] JSON parse failed url=' + url.slice(0, 100) +
+                         ' http=' + status + ' body=' + body.slice(0, 120));
+            resolve(null);
+          }
+        });
+      });
+    }
+
+    return chartFetch(q1url)
       .then(function(d) {
         if (d && d.chart && d.chart.result) return d;
+        if (yahooIsBlocked()) return null;  /* 429 tripped mid-flight — abort */
         /* Log why query1 failed before falling back */
         if (d && d.chart && d.chart.error) {
           console.warn('[yahoo] query1 chart error sym=' + symbol +
@@ -354,7 +448,7 @@ function yahooChartFetch(symbol) {
         } else {
           console.warn('[yahoo] query1 returned no result for ' + symbol + ', trying query2');
         }
-        return curlJSON(q2url, cookieArgs);
+        return chartFetch(q2url);
       })
       .then(function(d) {
         /* If crumb is stale Yahoo returns { chart: { error: { code: 'Unauthorized' } } } */
@@ -831,11 +925,16 @@ async function getAccurateQuote(symbol) {
   if (yfResult) {
     console.log('[quote] ' + sym + ': Yahoo ok price=' + yfResult.price);
   } else {
-    console.warn('[quote] ' + sym + ': Yahoo returned nothing — trying Alpha Vantage');
+    var blocked429 = yahooIsBlocked();
+    if (blocked429) {
+      console.warn('[quote] ' + sym + ': Yahoo circuit open (' + blocked429 + 's remain) — skipping AV, going to Stooq/CoinGecko');
+    } else {
+      console.warn('[quote] ' + sym + ': Yahoo returned nothing — trying Alpha Vantage');
+    }
   }
 
-  /* ── Layer 2: Alpha Vantage — only when Yahoo fails ── */
-  if (!yfResult) {
+  /* ── Layer 2: Alpha Vantage — only when Yahoo fails AND circuit is closed ── */
+  if (!yfResult && !yahooIsBlocked()) {
     avResult = await retryFetch(function() {
       return alphaVantageFetch(sym);
     }, 2, 1000);
@@ -986,14 +1085,28 @@ async function handleQuotes(req, res) {
   });
 
   /* ── Layer 2: Alpha Vantage for symbols Yahoo missed ── */
-  /* Cap at 5 per request to stay within the 5 req/min free limit */
+  /* Hard cap at 3 per request — the free tier is 25 req/DAY (not per minute).
+     When Yahoo is rate-limiting (circuit open), skip AV entirely to preserve
+     the daily quota for genuine single-symbol lookups.                    */
   var avMap = {};
-  if (needBackup.length > 0) {
-    var batch     = needBackup.slice(0, 5);
-    var avResults = await Promise.all(batch.map(alphaVantageFetch));
-    batch.forEach(function(sym, i) {
-      if (avResults[i]) avMap[sym] = avResults[i];
-    });
+  var avSkipped = 0;
+  if (needBackup.length > 0 && !yahooIsBlocked()) {
+    var avKey = (process.env.ALPHA_VANTAGE_API_KEY || '').trim();
+    if (avKey) {
+      var avBatch   = needBackup.slice(0, 3);
+      avSkipped     = needBackup.length - avBatch.length;
+      if (avSkipped > 0) {
+        console.warn('[quotes] AV: capping at 3/' + needBackup.length +
+                     ' symbols to preserve daily quota — skipping: ' +
+                     needBackup.slice(3).join(', '));
+      }
+      var avResults = await Promise.all(avBatch.map(alphaVantageFetch));
+      avBatch.forEach(function(sym, i) {
+        if (avResults[i]) avMap[sym] = avResults[i];
+      });
+    }
+  } else if (yahooIsBlocked()) {
+    console.warn('[quotes] Yahoo circuit open — skipping Alpha Vantage to preserve daily quota');
   }
 
   /* Symbols still missing after Layer 1+2 */
@@ -1103,9 +1216,14 @@ function handleHealth(res) {
     memoryMB:   Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
     quoteCache: { size: cacheSymbols.length, entries: cacheEntries },
     yahoo: {
-      crumbOk:  !!_yahooCrumb.value,
+      crumbOk:         !!_yahooCrumb.value,
       crumbAgeMinutes: _yahooCrumb.ts ? Math.round((Date.now() - _yahooCrumb.ts) / 60000) : null,
-      note: _yahooCrumb.value ? 'authenticated (crumb + cookie session active)' : 'no crumb — Yahoo requests will fail'
+      circuitOpen:     yahooIsBlocked() > 0,
+      circuitCooldownSec: yahooIsBlocked() || 0,
+      circuitOpenUntil:   _yahoo429Until ? new Date(_yahoo429Until).toISOString() : null,
+      note: yahooIsBlocked()
+        ? 'RATE LIMITED — circuit open, requests paused for ' + yahooIsBlocked() + 's'
+        : (_yahooCrumb.value ? 'authenticated (crumb + cookie session active)' : 'no crumb — Yahoo requests will fail')
     },
     alphaVantage: {
       configured: !!avKey,
