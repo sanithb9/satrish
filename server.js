@@ -189,15 +189,38 @@ var _BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/5
 /* curl-based fetch — honours https_proxy env var automatically */
 function curlJSON(url, extraArgs) {
   return new Promise(function(resolve) {
-    var args = ['-s', '--max-time', '10', '-L',
+    var args = [
+      '-s', '--max-time', '10', '-L',
+      '-w', '\n__STATUS__:%{http_code}',   /* append HTTP status for logging */
       '-H', 'User-Agent: ' + _BROWSER_UA,
       '-H', 'Accept: application/json,*/*',
       '-H', 'Accept-Language: en-US,en;q=0.9',
       '-H', 'Referer: https://finance.yahoo.com'
     ].concat(extraArgs || []).concat([url]);
-    execFile('curl', args, { maxBuffer: 4 * 1024 * 1024, timeout: 12000 }, function(err, stdout) {
-      if (err || !stdout || !stdout.trim()) { resolve(null); return; }
-      try { resolve(JSON.parse(stdout)); } catch(e) { resolve(null); }
+    execFile('curl', args, { maxBuffer: 4 * 1024 * 1024, timeout: 12000 }, function(err, stdout, stderr) {
+      /* Split off the status trailer we appended */
+      var raw    = stdout || '';
+      var marker = raw.lastIndexOf('\n__STATUS__:');
+      var body   = marker >= 0 ? raw.slice(0, marker) : raw;
+      var status = marker >= 0 ? raw.slice(marker + '\n__STATUS__:'.length).trim() : '?';
+
+      if (err) {
+        console.error('[curl] ERROR url=' + url.slice(0, 120) +
+                      ' code=' + err.code + ' killed=' + err.killed +
+                      (stderr ? ' stderr=' + stderr.slice(0, 200) : ''));
+        resolve(null); return;
+      }
+      if (!body || !body.trim()) {
+        console.warn('[curl] EMPTY body url=' + url.slice(0, 120) + ' http=' + status);
+        resolve(null); return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch(e) {
+        console.warn('[curl] JSON parse failed url=' + url.slice(0, 120) +
+                     ' http=' + status + ' body=' + body.slice(0, 200));
+        resolve(null);
+      }
     });
   });
 }
@@ -248,11 +271,29 @@ function refreshYahooCrumb() {
       '-s', '--max-time', '15', '-L',
       '-c', _COOKIE_JAR,
       '-o', '/dev/null',
+      '-w', '%{http_code}',
       '-H', 'User-Agent: ' + _BROWSER_UA,
       '-H', 'Accept: text/html,application/xhtml+xml,*/*',
       '-H', 'Accept-Language: en-US,en;q=0.9',
       'https://finance.yahoo.com'
-    ], { timeout: 16000 }, function() {
+    ], { timeout: 16000 }, function(err1, status1, stderr1) {
+      var httpStatus = (status1 || '').trim();
+      if (err1) {
+        console.error('[yahoo] cookie step FAILED err=' + err1.message +
+                      (stderr1 ? ' stderr=' + stderr1.slice(0, 200) : ''));
+      } else {
+        /* Count cookies saved so we know if jar is empty */
+        var cookieCount = 0;
+        try {
+          var jar = fs.readFileSync(_COOKIE_JAR, 'utf8');
+          cookieCount = jar.split('\n').filter(function(l) {
+            return l && !l.startsWith('#');
+          }).length;
+        } catch(e) {}
+        console.log('[yahoo] cookie step http=' + httpStatus + ' jar=' + _COOKIE_JAR +
+                    ' cookies=' + cookieCount);
+      }
+
       /* Step 2 — exchange cookies for a crumb */
       execFile('curl', [
         '-s', '--max-time', '10',
@@ -261,7 +302,7 @@ function refreshYahooCrumb() {
         '-H', 'Accept: */*',
         '-H', 'Referer: https://finance.yahoo.com',
         'https://query1.finance.yahoo.com/v1/test/getcrumb'
-      ], { timeout: 12000 }, function(err, stdout) {
+      ], { timeout: 12000 }, function(err, stdout, stderr) {
         var crumb = (stdout || '').trim();
         if (!err && crumb && crumb.length > 0 && crumb[0] !== '<' && crumb[0] !== '{') {
           _yahooCrumb.value = crumb;
@@ -269,7 +310,9 @@ function refreshYahooCrumb() {
           console.log('[yahoo] crumb ok (' + crumb.length + ' chars)');
           resolve(crumb);
         } else {
-          console.log('[yahoo] crumb failed:', err ? err.message : (crumb || 'empty'));
+          console.error('[yahoo] crumb FAILED err=' + (err ? err.message : 'none') +
+                        ' crumb=' + JSON.stringify(crumb.slice(0, 120)) +
+                        (stderr ? ' stderr=' + stderr.slice(0, 200) : ''));
           resolve(null);
         }
       });
@@ -298,26 +341,48 @@ function yahooChartFetch(symbol) {
       }
     } catch(e) {}
     /* Try query1, fall back to query2 */
-    return curlJSON('https://query1.finance.yahoo.com' + path, cookieArgs)
+    var q1url = 'https://query1.finance.yahoo.com' + path;
+    var q2url = 'https://query2.finance.yahoo.com' + path;
+    return curlJSON(q1url, cookieArgs)
       .then(function(d) {
         if (d && d.chart && d.chart.result) return d;
-        return curlJSON('https://query2.finance.yahoo.com' + path, cookieArgs);
+        /* Log why query1 failed before falling back */
+        if (d && d.chart && d.chart.error) {
+          console.warn('[yahoo] query1 chart error sym=' + symbol +
+                       ' code=' + (d.chart.error.code || '?') +
+                       ' desc=' + (d.chart.error.description || '').slice(0, 100));
+        } else {
+          console.warn('[yahoo] query1 returned no result for ' + symbol + ', trying query2');
+        }
+        return curlJSON(q2url, cookieArgs);
       })
       .then(function(d) {
         /* If crumb is stale Yahoo returns { chart: { error: { code: 'Unauthorized' } } } */
-        if (d && d.chart && d.chart.error &&
-            String(d.chart.error.code).toLowerCase().includes('unauthorized')) {
-          _yahooCrumb.value = null;  /* force refresh on next call */
+        if (d && d.chart && d.chart.error) {
+          var code = String(d.chart.error.code || '').toLowerCase();
+          if (code.includes('unauthorized') || code.includes('invalid')) {
+            console.error('[yahoo] crumb rejected for ' + symbol +
+                          ' (code=' + d.chart.error.code + ') — forcing refresh');
+            _yahooCrumb.value = null;  /* force refresh on next call */
+            return null;
+          }
+          console.warn('[yahoo] chart error sym=' + symbol + ' code=' + d.chart.error.code);
           return null;
         }
         return d;
       });
   }).then(function(data) {
-    if (!data || !data.chart || !data.chart.result || !data.chart.result[0]) return null;
+    if (!data || !data.chart || !data.chart.result || !data.chart.result[0]) {
+      console.warn('[yahoo] no chart data for ' + symbol + ' (null result)');
+      return null;
+    }
     var meta  = data.chart.result[0].meta;
     var price = meta.regularMarketPrice;
     var prev  = meta.chartPreviousClose;
-    if (!price || price <= 0) return null;
+    if (!price || price <= 0) {
+      console.warn('[yahoo] price zero/missing for ' + symbol + ' meta=' + JSON.stringify(meta).slice(0, 200));
+      return null;
+    }
     var chg    = (prev && prev > 0) ? ((price - prev) / prev * 100) : 0;
     var chgAbs = (prev && prev > 0) ? (price - prev) : 0;
     return {
@@ -334,7 +399,10 @@ function yahooChartFetch(symbol) {
       fiftyTwoWeekHigh:    meta.fiftyTwoWeekHigh     || null,
       fiftyTwoWeekLow:     meta.fiftyTwoWeekLow      || null
     };
-  }).catch(function() { return null; });
+  }).catch(function(e) {
+    console.error('[yahoo] yahooChartFetch exception sym=' + symbol + ' err=' + e.message);
+    return null;
+  });
 }
 
 /* ─── Layer 1: Yahoo Finance batch (parallel per-symbol chart calls) ─── */
@@ -362,16 +430,36 @@ function alphaVantageFetch(symbol) {
             '&symbol=' + encodeURIComponent(symbol) +
             '&apikey=' + encodeURIComponent(avKey);
   return smartGet(url).then(function(data) {
-    if (!data) return null;
+    if (!data) {
+      console.warn('[av] null response for ' + symbol);
+      return null;
+    }
+    if (data['Note']) {
+      console.error('[av] RATE LIMIT for ' + symbol + ': ' + data['Note'].slice(0, 120));
+      return null;
+    }
+    if (data['Information']) {
+      console.error('[av] KEY ERROR for ' + symbol + ': ' + data['Information'].slice(0, 120));
+      return null;
+    }
     var gq = data['Global Quote'];
-    if (!gq || !gq['05. price']) return null;
+    if (!gq || !gq['05. price']) {
+      console.warn('[av] no Global Quote for ' + symbol + ' response=' + JSON.stringify(data).slice(0, 200));
+      return null;
+    }
     var price  = parseFloat(gq['05. price']);
     var chg    = parseFloat((gq['10. change percent'] || '0%').replace('%', ''));
     var dayStr = gq['07. latest trading day'] || '';
-    if (!price || price <= 0) return null;
+    if (!price || price <= 0) {
+      console.warn('[av] zero price for ' + symbol);
+      return null;
+    }
     var ts = dayStr ? new Date(dayStr + 'T21:00:00Z') : new Date(0);
     return { price: price, chg: chg, ts: ts };
-  }).catch(function() { return null; });
+  }).catch(function(e) {
+    console.error('[av] exception for ' + symbol + ': ' + e.message);
+    return null;
+  });
 }
 
 /* ─── Layer 3: Stooq (no-auth, free — stocks + indices) ─────────────── */
@@ -408,18 +496,35 @@ function stooqFetch(symbol) {
       '-s', '--max-time', '10', '-L',
       '-H', 'User-Agent: ' + _BROWSER_UA,
       url
-    ], { maxBuffer: 64 * 1024, timeout: 12000 }, function(err, stdout) {
-      if (err || !stdout) { resolve(null); return; }
+    ], { maxBuffer: 64 * 1024, timeout: 12000 }, function(err, stdout, stderr) {
+      if (err) {
+        console.warn('[stooq] curl error sym=' + symbol + ' stooqSym=' + stooqSym +
+                     ' err=' + err.message + (stderr ? ' stderr=' + stderr.slice(0, 100) : ''));
+        resolve(null); return;
+      }
+      if (!stdout) {
+        console.warn('[stooq] empty response sym=' + symbol + ' stooqSym=' + stooqSym);
+        resolve(null); return;
+      }
       var lines = stdout.trim().split('\n');
-      if (lines.length < 2) { resolve(null); return; }
+      if (lines.length < 2) {
+        console.warn('[stooq] only header line for sym=' + symbol + ' body=' + stdout.slice(0, 100));
+        resolve(null); return;
+      }
       var parts = lines[1].split(',');
       /* CSV: Symbol,Date,Time,Open,High,Low,Close,Volume */
-      if (parts.length < 7 || parts[1] === 'N/D') { resolve(null); return; }
+      if (parts.length < 7 || parts[1] === 'N/D') {
+        console.warn('[stooq] N/D or short row sym=' + symbol + ' row=' + lines[1]);
+        resolve(null); return;
+      }
       var close = parseFloat(parts[6]);
       var open  = parseFloat(parts[3]);
-      if (!close || close <= 0) { resolve(null); return; }
+      if (!close || close <= 0) {
+        console.warn('[stooq] zero close for sym=' + symbol + ' row=' + lines[1]);
+        resolve(null); return;
+      }
       var chg = (open > 0) ? ((close - open) / open * 100) : 0;
-      resolve({ price: close, chg: chg, ts: new Date() });
+      resolve({ price: close, chg: chg, ts: new Date(), _src: 'stooq' });
     });
   });
 }
@@ -439,13 +544,24 @@ function coingeckoFetch(symbol) {
             '?ids=' + encodeURIComponent(id) +
             '&vs_currencies=usd&include_24hr_change=true';
   return curlJSON(url).then(function(data) {
-    if (!data || !data[id] || !data[id].usd) return null;
+    if (!data) {
+      console.warn('[coingecko] null response for ' + symbol + ' (id=' + id + ')');
+      return null;
+    }
+    if (!data[id] || !data[id].usd) {
+      console.warn('[coingecko] missing price for ' + symbol + ' (id=' + id + ') response=' + JSON.stringify(data).slice(0, 150));
+      return null;
+    }
     return {
       price: data[id].usd,
       chg:   data[id].usd_24h_change || 0,
-      ts:    new Date()
+      ts:    new Date(),
+      _src:  'coingecko'
     };
-  }).catch(function() { return null; });
+  }).catch(function(e) {
+    console.error('[coingecko] exception for ' + symbol + ': ' + e.message);
+    return null;
+  });
 }
 
 /* ─── Layer 3: Validation logic ─────────────────────────────────── */
@@ -674,6 +790,8 @@ async function getAccurateQuote(symbol) {
   var yfResult     = null;
   var avResult     = null;
 
+  console.log('[quote] → fetching ' + sym + ' market=' + marketStatus);
+
   /* ── Layer 1: Yahoo Finance with retry ── */
   var yfFields = [
     'regularMarketPrice', 'regularMarketChange', 'regularMarketChangePercent',
@@ -710,11 +828,22 @@ async function getAccurateQuote(symbol) {
     }
   }
 
+  if (yfResult) {
+    console.log('[quote] ' + sym + ': Yahoo ok price=' + yfResult.price);
+  } else {
+    console.warn('[quote] ' + sym + ': Yahoo returned nothing — trying Alpha Vantage');
+  }
+
   /* ── Layer 2: Alpha Vantage — only when Yahoo fails ── */
   if (!yfResult) {
     avResult = await retryFetch(function() {
       return alphaVantageFetch(sym);
     }, 2, 1000);
+    if (avResult) {
+      console.log('[quote] ' + sym + ': Alpha Vantage ok price=' + avResult.price);
+    } else {
+      console.warn('[quote] ' + sym + ': Alpha Vantage returned nothing — trying Stooq/CoinGecko');
+    }
   }
 
   /* ── Layer 3: Stooq / CoinGecko — only when both Layer 1+2 fail ── */
@@ -1258,19 +1387,37 @@ var server = http.createServer(function(req, res) {
 
 server.listen(PORT, function() {
   console.log('StockSense AI running → http://localhost:' + PORT);
-  /* Log available data sources on startup */
-  execFile('curl', ['--version'], { timeout: 5000 }, function(err, stdout) {
-    if (err) {
-      console.error('[startup] WARNING: curl not found — data fetching will fail!');
-    } else {
-      console.log('[startup] curl ok:', (stdout || '').split('\n')[0].trim());
-    }
-  });
+
+  /* ── Startup diagnostics (visible in Render logs) ── */
   var avKey = (process.env.ALPHA_VANTAGE_API_KEY || '').trim();
-  console.log('[startup] Alpha Vantage: ' + (avKey ? 'configured' : 'NOT configured (set ALPHA_VANTAGE_API_KEY)'));
-  console.log('[startup] Stooq: always available (no auth)');
-  console.log('[startup] CoinGecko: always available (no auth, crypto only)');
+  var nodeEnv = process.env.NODE_ENV || '(not set)';
+  console.log('[startup] node=' + process.version + ' pid=' + process.pid + ' env=' + nodeEnv);
+  console.log('[startup] PORT=' + PORT + ' tmpdir=' + os.tmpdir() + ' platform=' + process.platform);
+  console.log('[startup] COOKIE_JAR=' + _COOKIE_JAR);
+  console.log('[startup] ALPHA_VANTAGE_API_KEY=' + (avKey ? 'SET (' + avKey.length + ' chars)' : 'NOT SET'));
+  console.log('[startup] Stooq: no-auth (stocks/indices)');
+  console.log('[startup] CoinGecko: no-auth (crypto only)');
   console.log('[startup] Diagnose endpoint: GET /api/diagnose');
+
+  /* Check curl availability and log version */
+  execFile('curl', ['--version'], { timeout: 5000 }, function(err, stdout, stderr) {
+    if (err) {
+      console.error('[startup] CRITICAL: curl not found — all data fetching will fail!',
+                    err.message, stderr ? stderr.slice(0, 200) : '');
+    } else {
+      console.log('[startup] curl: ' + (stdout || '').split('\n')[0].trim());
+    }
+
+    /* Probe outbound HTTPS reachability (important on Render free tier) */
+    execFile('curl', ['-s', '--max-time', '5', '-o', '/dev/null', '-w', '%{http_code}',
+                      'https://finance.yahoo.com'], { timeout: 7000 },
+      function(e2, out2) {
+        console.log('[startup] outbound HTTPS probe → finance.yahoo.com http=' + (out2 || 'err') +
+                    (e2 ? ' error=' + e2.message : ''));
+      }
+    );
+  });
+
   /* Obtain Yahoo Finance crumb on startup so first data fetch is authenticated */
   refreshYahooCrumb().catch(function() {});
   /* Refresh crumb every 4 hours to prevent expiry */
