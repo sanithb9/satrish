@@ -879,6 +879,26 @@ function pickBestSource(yfQuote, avResult, symbol) {
 ════════════════════════════════════════════════════════════════ */
 var QUOTE_CACHE = {};   /* { [SYM]: { data: QuoteData, cachedAt: number } } */
 
+/* ─── Batch-route raw cache ──────────────────────────────────────────
+   Stores the raw Yahoo-shaped result objects from handleQuotes so that
+   repeated batch calls skip live fetches for symbols whose data is
+   still fresh.  Keyed by uppercase symbol, TTL mirrors _cacheTTL().   */
+var BATCH_CACHE = {};   /* { [SYM]: { raw: object, cachedAt: number, marketStatus: string } } */
+
+function batchCacheGet(sym) {
+  var e = BATCH_CACHE[sym];
+  if (!e) return null;
+  if (Date.now() - e.cachedAt > _cacheTTL(e.marketStatus)) {
+    delete BATCH_CACHE[sym];
+    return null;
+  }
+  return e.raw;
+}
+
+function batchCacheSet(sym, raw, marketStatus) {
+  BATCH_CACHE[sym] = { raw: raw, cachedAt: Date.now(), marketStatus: marketStatus || 'closed' };
+}
+
 /* When all live sources fail, serve the last known value for up to this long */
 var STALE_EMERGENCY_TTL = 4 * 60 * 60 * 1000; /* 4 hours */
 
@@ -1265,8 +1285,26 @@ async function handleQuotes(req, res) {
 
   var symbolList = symbols.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
 
-  /* ── Layer 1: Yahoo Finance (batch) ── */
-  var yfData = await yahooFetch(symbols, fields);
+  /* ── Layer 0: BATCH_CACHE — skip live fetch for fresh symbols ── */
+  var batchCachedMap = {};
+  var liveList = symbolList.filter(function(sym) {
+    var hit = batchCacheGet(sym);
+    if (hit) { batchCachedMap[sym] = hit; return false; }
+    return true;
+  });
+
+  /* Fully cached — short-circuit without touching any upstream source */
+  if (liveList.length === 0) {
+    var allCached = symbolList.map(function(s) { return batchCachedMap[s]; }).filter(Boolean);
+    return sendJSON(res, 200, {
+      quoteResponse: { result: allCached, error: null },
+      _meta: { cooldownSec: yahooIsBlocked() || 0, fromCache: allCached.length, live: 0 }
+    });
+  }
+
+  /* ── Layer 1: Yahoo Finance (batch, only for uncached symbols) ── */
+  var liveSymbols = liveList.join(',');
+  var yfData = await yahooFetch(liveSymbols, fields);
   var yfMap  = {};
   if (yfData && yfData.quoteResponse && yfData.quoteResponse.result) {
     yfData.quoteResponse.result.forEach(function(q) {
@@ -1274,8 +1312,8 @@ async function handleQuotes(req, res) {
     });
   }
 
-  /* Identify symbols Yahoo missed or returned a zero price for */
-  var needBackup = symbolList.filter(function(s) {
+  /* Identify symbols Yahoo missed or returned a zero price for (only among live symbols) */
+  var needBackup = liveList.filter(function(s) {
     var q = yfMap[s];
     return !q || !(q.regularMarketPrice > 0);
   });
@@ -1365,9 +1403,9 @@ async function handleQuotes(req, res) {
     needFX.forEach(function(sym, i) { if (fxResults[i]) fxMap[sym] = fxResults[i]; });
   }
 
-  /* ── Build the final result array ── */
+  /* ── Build the final result array (live symbols only) ── */
   var finalResults = [];
-  symbolList.forEach(function(sym) {
+  liveList.forEach(function(sym) {
     var yfQ = yfMap[sym];
     var avR = avMap[sym];
     var sqR = stooqMap[sym];
@@ -1447,11 +1485,28 @@ async function handleQuotes(req, res) {
     }
   });
 
+  /* Populate BATCH_CACHE for each live result so next request can skip fetching */
+  finalResults.forEach(function(r) {
+    if (r.symbol && r.regularMarketPrice > 0) {
+      batchCacheSet(r.symbol, r, getMarketStatus(r.symbol));
+    }
+  });
+
+  /* Merge batch-cached symbols back into the response */
+  Object.keys(batchCachedMap).forEach(function(sym) {
+    finalResults.push(batchCachedMap[sym]);
+  });
+
   var missing = symbolList.length - finalResults.length;
   sendJSON(res, 200, {
     quoteResponse: {
       result: finalResults,
       error:  missing > 0 ? missing + ' symbol(s) unavailable from all sources' : null
+    },
+    _meta: {
+      cooldownSec:   yahooIsBlocked() || 0,
+      fromCache:     Object.keys(batchCachedMap).length,
+      live:          liveList.length
     }
   });
 }
