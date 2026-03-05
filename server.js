@@ -241,10 +241,13 @@ var CRUMB_TTL    = 4 * 60 * 60 * 1000;  /* 4 hours */
 
 function refreshYahooCrumb() {
   return new Promise(function(resolve) {
-    /* Step 1 — visit finance.yahoo.com to collect session cookies on .yahoo.com domain */
+    /* Step 1 — visit finance.yahoo.com to collect session cookies on .yahoo.com domain.
+       Use -o /dev/null to discard the large HTML body; without this, execFile's default
+       maxBuffer (1 MB) is exceeded and curl is killed before it can write the cookie jar. */
     execFile('curl', [
       '-s', '--max-time', '15', '-L',
       '-c', _COOKIE_JAR,
+      '-o', '/dev/null',
       '-H', 'User-Agent: ' + _BROWSER_UA,
       '-H', 'Accept: text/html,application/xhtml+xml,*/*',
       '-H', 'Accept-Language: en-US,en;q=0.9',
