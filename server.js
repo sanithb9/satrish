@@ -192,7 +192,8 @@ function curlJSON(url, extraArgs) {
     var args = ['-s', '--max-time', '10', '-L',
       '-H', 'User-Agent: ' + _BROWSER_UA,
       '-H', 'Accept: application/json,*/*',
-      '-H', 'Accept-Language: en-US,en;q=0.9'
+      '-H', 'Accept-Language: en-US,en;q=0.9',
+      '-H', 'Referer: https://finance.yahoo.com'
     ].concat(extraArgs || []).concat([url]);
     execFile('curl', args, { maxBuffer: 4 * 1024 * 1024, timeout: 12000 }, function(err, stdout) {
       if (err || !stdout || !stdout.trim()) { resolve(null); return; }
@@ -240,13 +241,14 @@ var CRUMB_TTL    = 4 * 60 * 60 * 1000;  /* 4 hours */
 
 function refreshYahooCrumb() {
   return new Promise(function(resolve) {
-    /* Step 1 — visit fc.yahoo.com to collect session cookies */
+    /* Step 1 — visit finance.yahoo.com to collect session cookies on .yahoo.com domain */
     execFile('curl', [
       '-s', '--max-time', '15', '-L',
       '-c', _COOKIE_JAR,
       '-H', 'User-Agent: ' + _BROWSER_UA,
-      '-H', 'Accept: text/html,*/*',
-      'https://fc.yahoo.com'
+      '-H', 'Accept: text/html,application/xhtml+xml,*/*',
+      '-H', 'Accept-Language: en-US,en;q=0.9',
+      'https://finance.yahoo.com'
     ], { timeout: 16000 }, function() {
       /* Step 2 — exchange cookies for a crumb */
       execFile('curl', [
@@ -254,6 +256,7 @@ function refreshYahooCrumb() {
         '-b', _COOKIE_JAR, '-c', _COOKIE_JAR,
         '-H', 'User-Agent: ' + _BROWSER_UA,
         '-H', 'Accept: */*',
+        '-H', 'Referer: https://finance.yahoo.com',
         'https://query1.finance.yahoo.com/v1/test/getcrumb'
       ], { timeout: 12000 }, function(err, stdout) {
         var crumb = (stdout || '').trim();
