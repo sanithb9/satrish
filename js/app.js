@@ -17,6 +17,10 @@ var APP = {
   lastChecked:   null   /* Date | null */
 };
 
+/* Tracks which symbols have received a confirmed live price this session.
+   All prices start as seed/approximate (≈) until live fetch confirms them. */
+var _stockLivePrices = {};
+
 /* ── Tooltip state ── */
 var _ttTimer = null;
 
@@ -686,15 +690,22 @@ function updateStockPrices(prices) {
   Object.keys(prices).forEach(function(sym) {
     try {
       var p = prices[sym];
+      if (!p || !(p.price > 0)) return;
       var stock = STOCKS[sym];
       if (stock) {
         stock.price = p.price;
         stock.chg   = p.chg;
       }
-      /* Update any currently visible price elements */
+      /* Mark as confirmed live — clears the approximate (≈) indicator */
+      _stockLivePrices[sym] = true;
+
+      /* Patch any visible price elements in-place without a full re-render */
       var prEl = document.querySelector('[data-price-sym="' + sym + '"]');
       var chEl = document.querySelector('[data-chg-sym="' + sym + '"]');
-      if (prEl && p.price) prEl.textContent = getCurrencySymbol(sym) + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+      if (prEl) {
+        prEl.textContent = getCurrencySymbol(sym) + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+        prEl.classList.remove('approx');
+      }
       if (chEl) {
         chEl.textContent = (p.chg >= 0 ? '+' : '') + p.chg.toFixed(2) + '%';
         chEl.className = 'sc-chg ' + (p.chg >= 0 ? 'up' : 'dn');
@@ -858,15 +869,19 @@ function renderPickList(id, list) {
 
 /* ── Build one stock card ── */
 function buildStockCard(r, compact) {
-  var sym    = r.sym;
-  var price  = r.price || 0;
-  var chg    = r.chg || 0;
-  var act    = (r.action || 'HOLD').toLowerCase();
-  var riskW  = r.risk === 'Low' ? '25' : r.risk === 'High' ? '85' : '55';
-  var riskCls= (r.risk || 'Medium').toLowerCase();
-  var isAvoid= (act === 'avoid');
-  var prStr  = price ? getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
-  var chStr  = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+  var sym      = r.sym;
+  var price    = r.price || 0;
+  var chg      = r.chg || 0;
+  var isLive   = !!_stockLivePrices[sym];
+  var act      = (r.action || 'HOLD').toLowerCase();
+  var riskW    = r.risk === 'Low' ? '25' : r.risk === 'High' ? '85' : '55';
+  var riskCls  = (r.risk || 'Medium').toLowerCase();
+  var isAvoid  = (act === 'avoid');
+  /* Prices not yet confirmed by a live fetch are shown as approximate (≈) */
+  var prStr    = price ? getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+  var priceClass = 'sc-price' + (isLive ? '' : ' approx');
+  /* Stale chg from seed data is meaningless — hide until live */
+  var chStr    = isLive ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—';
   var showT212 = APP.settings.t212 !== false;
 
   var actIcon = { buy:'fa-arrow-up', hold:'fa-minus', watch:'fa-eye', avoid:'fa-ban' };
@@ -924,8 +939,8 @@ function buildStockCard(r, compact) {
         '<div><div class="sc-sym">' + sym + capBadge + '</div><div class="sc-name">' + r.name + '</div></div>' +
       '</div>' +
       '<div class="sc-right">' +
-        '<div class="sc-price" data-price-sym="' + sym + '">' + prStr + '</div>' +
-        '<div class="sc-chg ' + (chg >= 0 ? 'up' : 'dn') + '" data-chg-sym="' + sym + '">' + chStr + '</div>' +
+        '<div class="' + priceClass + '" data-price-sym="' + sym + '">' + prStr + '</div>' +
+        '<div class="sc-chg ' + (isLive ? (chg >= 0 ? 'up' : 'dn') : '') + '" data-chg-sym="' + sym + '">' + chStr + '</div>' +
       '</div>' +
     '</div>' +
     '<span class="pill ' + act + '"><i class="fas ' + (actIcon[act] || 'fa-minus') + '"></i> ' + (actLabel[act] || act.toUpperCase()) + '</span>' +
@@ -1018,13 +1033,15 @@ function renderWatchlist(prices) {
       var chg    = cached.chg !== undefined ? cached.chg : (known.chg || 0);
       var name   = known.name || (STOCK_LOOKUP && STOCK_LOOKUP.filter(function(s){return s.sym===sym;})[0] || {}).name || sym;
 
+      var wlIsLive = !!_stockLivePrices[sym] || (cached && cached.price > 0);
       var prStr, chStr;
       if (price) {
-        prStr = getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+        var prNum = getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+        prStr = wlIsLive ? prNum : '<span style="color:var(--t3)">≈' + prNum + '</span>';
       } else {
         prStr = '<span style="color:var(--t3);font-size:11px">fetching…</span>';
       }
-      chStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      chStr = wlIsLive ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—';
 
       var div = document.createElement('div');
       div.className = 'wl-item';
@@ -1034,7 +1051,7 @@ function renderWatchlist(prices) {
         '<div class="wl-name">' + name + '</div>' +
         '<div style="text-align:right">' +
           '<div class="wl-pr">' + prStr + '</div>' +
-          '<div class="wl-ch ' + (chg >= 0 ? 'up' : 'dn') + '">' + chStr + '</div>' +
+          '<div class="wl-ch ' + (wlIsLive ? (chg >= 0 ? 'up' : 'dn') : '') + '">' + chStr + '</div>' +
         '</div>' +
         '<button class="wl-rm" onclick="event.stopPropagation();removeWatchlist(\'' + sym + '\')"><i class="fas fa-times"></i></button>';
       items.appendChild(div);
@@ -1101,14 +1118,23 @@ function renderAlerts() {
 function openStockDetail(sym) {
   var s = STOCKS[sym];
   if (!s) { showToast('Stock not in database', 'info'); return; }
-  var price = s.price || 0;
-  var chg   = s.chg || 0;
+  var price    = s.price || 0;
+  var chg      = s.chg || 0;
+  var sdIsLive = !!_stockLivePrices[sym];
   var showT212 = APP.settings.t212 !== false;
 
   document.getElementById('stock-modal-title').textContent = sym + ' — ' + s.name;
 
   var cats = (s.catalysts || []).map(function(c) { return '<li>✓ ' + c + '</li>'; }).join('');
   var rsks = (s.risks || []).map(function(r) { return '<li>✗ ' + r + '</li>'; }).join('');
+
+  var priceDisplay = price
+    ? (sdIsLive ? '' : '<span style="color:var(--t3);font-size:12px">≈ </span>') +
+      getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2})
+    : '—';
+  var chgDisplay = sdIsLive
+    ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% today'
+    : '<span style="color:var(--t3)">Live price loading…</span>';
 
   var html =
     '<div class="sd-top">' +
@@ -1119,8 +1145,8 @@ function openStockDetail(sym) {
       '</div>' +
     '</div>' +
     '<div class="sd-price-row">' +
-      '<div class="sd-price">' + (price ? getCurrencySymbol(sym) + price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—') + '</div>' +
-      '<div class="sd-chg ' + (chg >= 0 ? 'up' : 'dn') + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% today</div>' +
+      '<div class="sd-price">' + priceDisplay + '</div>' +
+      '<div class="sd-chg ' + (sdIsLive ? (chg >= 0 ? 'up' : 'dn') : '') + '">' + chgDisplay + '</div>' +
     '</div>' +
     '<div class="sd-stats">' +
       '<div class="sd-stat"><div class="sd-stat-l">12M Target</div><div class="sd-stat-v" style="color:var(--green)">' + (s.target12m || '—') + '</div></div>' +
