@@ -112,7 +112,11 @@ document.addEventListener('DOMContentLoaded', function() {
   try { renderAlerts(); }    catch(e) { console.error('renderAlerts', e); }
   try { renderWatchlist(); } catch(e) { console.error('renderWatchlist', e); }
   try { renderPortfolio(); } catch(e) { console.error('renderPortfolio', e); }
-  try { drawGauge(54); }     catch(e) {}
+  try {
+    var _savedFG = JSON.parse(localStorage.getItem('ss_fg_cache') || 'null');
+    if (_savedFG && _savedFG.score) updateGauge(_savedFG.score, _savedFG.label);
+    else drawGauge(54);
+  } catch(e) { try { drawGauge(54); } catch(e2) {} }
   // Init autocomplete components
   setTimeout(function() {
     try { initPortfolioAutocomplete(); } catch(e) {}
@@ -367,15 +371,12 @@ function liveRefresh() {
       });
     })(),
     (function() {
-      FETCH_LOG.fearGreed.lastTry = Date.now();
-      return fetchFearGreed().then(function(fg) {
-        if (fg) { _logOk('fearGreed'); updateGauge(fg.score, fg.label); }
-        else _logErr('fearGreed', 'No data returned');
-      }).catch(function(e) { _logErr('fearGreed', e ? e.message : 'Network error'); });
-    })(),
-    (function() {
-      /* Collect all symbols: STOCKS + portfolio holdings + watchlist */
+      /* Collect all symbols: STOCKS + portfolio holdings + watchlist + ^VIX.
+         ^VIX is piggybacked here instead of a separate fetchFearGreed() call —
+         5 simultaneous Yahoo requests per cycle was causing VIX to be dropped
+         under rate-limit pressure (VIX has zero fallback sources). */
       var syms = Object.keys(STOCKS);
+      if (syms.indexOf('^VIX') === -1) syms.push('^VIX');
       try {
         if (PORTFOLIO && PORTFOLIO.holdings) {
           PORTFOLIO.holdings.forEach(function(h) {
@@ -390,10 +391,24 @@ function liveRefresh() {
           });
         }
       } catch(e) {}
-      FETCH_LOG.stocks.lastTry = Date.now();
+      FETCH_LOG.stocks.lastTry    = Date.now();
+      FETCH_LOG.fearGreed.lastTry = Date.now();
       return fetchStockPrices(syms).then(function(prices) {
         if (prices) {
           _logOk('stocks', { syms: Object.keys(prices).length });
+
+          /* ── Fear & Greed: derive from VIX price in the same batch ── */
+          var vixData = prices['^VIX'];
+          if (vixData && vixData.price > 0) {
+            var fg = vixToFearGreed(vixData.price);
+            _logOk('fearGreed');
+            updateGauge(fg.score, fg.label);
+            try { localStorage.setItem('ss_fg_cache', JSON.stringify(fg)); } catch(e) {}
+          } else {
+            _logErr('fearGreed', 'VIX not returned in batch — Yahoo may be rate-limiting');
+          }
+          /* Remove ^VIX so it is not processed as a regular stock */
+          delete prices['^VIX'];
 
           /* 1. Push live prices into STOCKS objects so all downstream code uses real data */
           updateStockPrices(prices);
