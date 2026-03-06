@@ -21,6 +21,40 @@ var APP = {
    All prices start as seed/approximate (≈) until live fetch confirms them. */
 var _stockLivePrices = {};
 
+/* ════════════════════════════════════════
+   PRICE CACHE — persist last known live
+   prices across sessions so the first
+   render never shows stale seed data.
+════════════════════════════════════════ */
+function savePriceCache() {
+  try {
+    var cache = {};
+    Object.keys(_stockLivePrices).forEach(function(sym) {
+      if (STOCKS[sym] && STOCKS[sym].price > 0) {
+        cache[sym] = { price: STOCKS[sym].price, chg: STOCKS[sym].chg || 0 };
+      }
+    });
+    localStorage.setItem('ss_price_cache', JSON.stringify(cache));
+  } catch(e) {}
+}
+
+function loadPriceCache() {
+  try {
+    var cache = JSON.parse(localStorage.getItem('ss_price_cache') || '{}');
+    Object.keys(cache).forEach(function(sym) {
+      var p = cache[sym];
+      if (!p || !(p.price > 0)) return;
+      /* Overwrite seed data with last known real price */
+      if (STOCKS[sym]) {
+        STOCKS[sym].price = p.price;
+        STOCKS[sym].chg   = p.chg || 0;
+      }
+      /* Treat as confirmed so ≈ is never shown for a previously fetched symbol */
+      _stockLivePrices[sym] = true;
+    });
+  } catch(e) {}
+}
+
 /* ── Tooltip state ── */
 var _ttTimer = null;
 
@@ -67,6 +101,8 @@ document.addEventListener('DOMContentLoaded', function() {
   try { loadSettings(); }    catch(e) { console.error('loadSettings', e); }
   try { loadWatchlist(); }   catch(e) { console.error('loadWatchlist', e); }
   try { loadPortfolio(); }   catch(e) { console.error('loadPortfolio', e); }
+  /* Restore last known live prices before first render — never show stale seed data */
+  try { loadPriceCache(); }  catch(e) {}
   /* apiLoadKeys() removed — Finnhub/NewsAPI not used client-side */
   try { updateMarketStatus(); } catch(e) {}
   try { initRecs(); }        catch(e) { console.error('initRecs', e); }
@@ -713,6 +749,8 @@ function updateStockPrices(prices) {
       });
     } catch(e) {}
   });
+  /* Persist so next session starts from last known real prices, not seed data */
+  savePriceCache();
 }
 
 /* ════════════════════════════════════════
