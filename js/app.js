@@ -699,17 +699,18 @@ function updateStockPrices(prices) {
       /* Mark as confirmed live — clears the approximate (≈) indicator */
       _stockLivePrices[sym] = true;
 
-      /* Patch any visible price elements in-place without a full re-render */
-      var prEl = document.querySelector('[data-price-sym="' + sym + '"]');
-      var chEl = document.querySelector('[data-chg-sym="' + sym + '"]');
-      if (prEl) {
-        prEl.textContent = getCurrencySymbol(sym) + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+      /* Patch ALL visible price elements in-place across every tab — no full re-render needed */
+      var priceText = getCurrencySymbol(sym) + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+      var chgText   = (p.chg >= 0 ? '+' : '') + p.chg.toFixed(2) + '%';
+      var chgCls    = 'sc-chg ' + (p.chg >= 0 ? 'up' : 'dn');
+      document.querySelectorAll('[data-price-sym="' + sym + '"]').forEach(function(prEl) {
+        prEl.textContent = priceText;
         prEl.classList.remove('approx');
-      }
-      if (chEl) {
-        chEl.textContent = (p.chg >= 0 ? '+' : '') + p.chg.toFixed(2) + '%';
-        chEl.className = 'sc-chg ' + (p.chg >= 0 ? 'up' : 'dn');
-      }
+      });
+      document.querySelectorAll('[data-chg-sym="' + sym + '"]').forEach(function(chEl) {
+        chEl.textContent = chgText;
+        chEl.className   = chgCls;
+      });
     } catch(e) {}
   });
 }
@@ -814,8 +815,12 @@ function buildImmediateCard(r, type) {
   var urgency = isBuy ? r.urgencyBuy : r.urgencySell;
   var urgLabel= urgency >= 60 ? 'CRITICAL' : urgency >= 45 ? 'URGENT' : 'HIGH';
   var urgCls  = urgency >= 60 ? 'critical' : urgency >= 45 ? 'urgent' : 'high';
-  var price   = r.price ? getCurrencySymbol(r.sym) + r.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+  var isLive  = !!_stockLivePrices[r.sym];
   var chg     = (r.chg || 0);
+  var prStr   = r.price ? getCurrencySymbol(r.sym) + r.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+  var priceClass = 'sc-price' + (isLive ? '' : ' approx');
+  var chgStr  = isLive ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—';
+  var chgCls  = isLive ? (chg >= 0 ? 'up' : 'dn') : '';
   var capBadge= r.cap ? '<span class="cap-badge ' + r.cap + '">' + r.cap + '</span>' : '';
   var showT212 = APP.settings.t212 !== false;
 
@@ -831,8 +836,8 @@ function buildImmediateCard(r, type) {
       '<div class="imm-badges">' +
         '<span class="imm-urgency ' + urgCls + '">' + urgLabel + '</span>' +
         '<div style="text-align:right;margin-top:3px">' +
-          '<div class="sc-price">' + price + '</div>' +
-          '<div class="sc-chg ' + (chg>=0?'up':'dn') + '">' + (chg>=0?'+':'') + chg.toFixed(2) + '%</div>' +
+          '<div class="' + priceClass + '" data-price-sym="' + r.sym + '">' + prStr + '</div>' +
+          '<div class="sc-chg ' + chgCls + '" data-chg-sym="' + r.sym + '">' + chgStr + '</div>' +
         '</div>' +
       '</div>' +
     '</div>' +

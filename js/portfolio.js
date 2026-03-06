@@ -308,9 +308,9 @@ function renderPortfolioHoldings() {
       ? (isLive ? priceNum : '<span class="approx">' + priceNum + '</span>')
       : '<span style="color:var(--t3);font-size:11px">fetching…</span>';
     var chgHtml = (isLive && h.currentChg !== undefined && h.currentChg !== 0)
-      ? '<span class="' + (h.currentChg >= 0 ? 'up' : 'dn') + '">' +
+      ? '<span class="' + (h.currentChg >= 0 ? 'up' : 'dn') + '" data-chg-sym="' + h.sym + '">' +
         (h.currentChg >= 0 ? '+' : '') + h.currentChg.toFixed(2) + '%</span>'
-      : '';
+      : '<span data-chg-sym="' + h.sym + '"></span>';
 
     return (
       '<div class="port-item ' + ai.cls + '">' +
