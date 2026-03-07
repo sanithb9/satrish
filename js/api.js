@@ -92,7 +92,7 @@ function fetchIndices() {
    STOCK PRICES — chunked batch (max 25/request)
    Source: Yahoo Finance JSON — free, ~15 min delay.
 ══════════════════════════════════════════════ */
-var PRICE_FIELDS = 'regularMarketPrice,regularMarketChangePercent,regularMarketTime';
+var PRICE_FIELDS = 'regularMarketPrice,regularMarketChangePercent,regularMarketTime,fiftyTwoWeekHigh,fiftyTwoWeekLow,earningsTimestamp';
 var _CHUNK_SIZE  = 25;
 
 function parseYFQuotes(data) {
@@ -101,12 +101,29 @@ function parseYFQuotes(data) {
   data.quoteResponse.result.forEach(function(q) {
     if (!q.symbol) return;
     result[q.symbol] = {
-      price: q.regularMarketPrice || 0,
-      chg:   q.regularMarketChangePercent || 0,
-      ts:    q.regularMarketTime ? new Date(q.regularMarketTime * 1000) : new Date()
+      price:      q.regularMarketPrice || 0,
+      chg:        q.regularMarketChangePercent || 0,
+      ts:         q.regularMarketTime ? new Date(q.regularMarketTime * 1000) : new Date(),
+      high52w:    q.fiftyTwoWeekHigh  || null,
+      low52w:     q.fiftyTwoWeekLow   || null,
+      earningsTs: q.earningsTimestamp || null
     };
   });
   return Object.keys(result).length > 0 ? result : null;
+}
+
+/* ══════════════════════════════════════════════
+   HISTORY — close price series for charting
+   Calls /api/history on our own server.
+   range: '1wk' | '1mo' | '3mo' | '6mo' | '1y'
+══════════════════════════════════════════════ */
+function fetchHistory(sym, range) {
+  range = range || '3mo';
+  var url = '/api/history?symbol=' + encodeURIComponent(sym) + '&range=' + encodeURIComponent(range);
+  return safeFetch(url, 15000).then(function(data) {
+    if (!data || !Array.isArray(data.closes) || data.closes.length < 2) return null;
+    return data;
+  }).catch(function() { return null; });
 }
 
 function fetchChunk(syms) {

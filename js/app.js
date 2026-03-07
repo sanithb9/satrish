@@ -21,6 +21,13 @@ var APP = {
    All prices start as seed/approximate (≈) until live fetch confirms them. */
 var _stockLivePrices = {};
 
+/* Stores 52W high/low, earningsTs from live fetches — keyed by symbol */
+var _stockMeta = {};
+
+/* Current open stock detail chart state */
+var _sdChartPeriod = '3mo';
+var _sdChartSym    = '';
+
 /* ════════════════════════════════════════
    PRICE CACHE — persist last known live
    prices across sessions so the first
@@ -53,6 +60,158 @@ function loadPriceCache() {
       _stockLivePrices[sym] = true;
     });
   } catch(e) {}
+}
+
+/* ════════════════════════════════════════
+   ACTION SNAPSHOT — detect UPGRADED /
+   DOWNGRADED signals across sessions.
+════════════════════════════════════════ */
+function saveActionSnapshot() {
+  try {
+    var snap = {};
+    Object.keys(STOCKS).forEach(function(sym) {
+      if (STOCKS[sym].action) snap[sym] = STOCKS[sym].action;
+    });
+    localStorage.setItem('ss_action_snap', JSON.stringify(snap));
+  } catch(e) {}
+}
+
+function loadActionSnapshot() {
+  try { return JSON.parse(localStorage.getItem('ss_action_snap') || '{}'); }
+  catch(e) { return {}; }
+}
+
+function getActionDelta(sym) {
+  var snap = loadActionSnapshot();
+  var prev = snap[sym];
+  var curr = STOCKS[sym] && STOCKS[sym].action;
+  if (!prev || !curr || prev === curr) return null;
+  var rank = { BUY: 3, HOLD: 2, WATCH: 1, AVOID: 0 };
+  var pR = rank[prev] !== undefined ? rank[prev] : 1;
+  var cR = rank[curr] !== undefined ? rank[curr] : 1;
+  if (cR > pR) return { label: '↑ UPGRADED',   cls: 'delta-up',   from: prev, to: curr };
+  if (cR < pR) return { label: '↓ DOWNGRADED', cls: 'delta-dn',   from: prev, to: curr };
+  return null;
+}
+
+/* ════════════════════════════════════════
+   RSI — 14-period Wilder smoothing
+════════════════════════════════════════ */
+function calcRSI(closes, period) {
+  period = period || 14;
+  var valid = closes.filter(function(c) { return c != null; });
+  if (valid.length < period + 1) return null;
+  var gains = 0, losses = 0;
+  for (var i = 1; i <= period; i++) {
+    var d = valid[i] - valid[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  var avgGain = gains / period;
+  var avgLoss = losses / period;
+  for (var j = period + 1; j < valid.length; j++) {
+    var d2 = valid[j] - valid[j - 1];
+    avgGain = (avgGain * (period - 1) + (d2 > 0 ? d2 : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (d2 < 0 ? -d2 : 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+}
+
+/* ════════════════════════════════════════
+   STOCK CHART — Canvas 2D, no lib
+════════════════════════════════════════ */
+function drawStockChart(canvas, closes, timestamps, currentPrice) {
+  var ctx = canvas.getContext('2d');
+  var W   = canvas.width;
+  var H   = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  /* Filter nulls */
+  var pts = [];
+  for (var i = 0; i < closes.length; i++) {
+    if (closes[i] != null && timestamps[i]) pts.push({ c: closes[i], t: timestamps[i] });
+  }
+  if (pts.length < 2) {
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No chart data', W / 2, H / 2);
+    return;
+  }
+
+  var prices = pts.map(function(p) { return p.c; });
+  var minP   = Math.min.apply(null, prices);
+  var maxP   = Math.max.apply(null, prices);
+  var range  = maxP - minP || 1;
+
+  var padL = 46, padR = 8, padT = 16, padB = 22;
+  var plotW = W - padL - padR;
+  var plotH = H - padT - padB;
+
+  function xOf(i) { return padL + (i / (pts.length - 1)) * plotW; }
+  function yOf(v) { return padT + (1 - (v - minP) / range) * plotH; }
+
+  var isUp      = pts[pts.length - 1].c >= pts[0].c;
+  var lineColor = isUp ? '#4ade80' : '#f87171';
+
+  /* Gradient fill */
+  var grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+  grad.addColorStop(0, isUp ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.25)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), yOf(pts[0].c));
+  for (var j = 1; j < pts.length; j++) ctx.lineTo(xOf(j), yOf(pts[j].c));
+  ctx.lineTo(xOf(pts.length - 1), padT + plotH);
+  ctx.lineTo(xOf(0), padT + plotH);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  /* Price line */
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), yOf(pts[0].c));
+  for (var k = 1; k < pts.length; k++) ctx.lineTo(xOf(k), yOf(pts[k].c));
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth   = 1.8;
+  ctx.stroke();
+
+  /* Y-axis labels */
+  ctx.fillStyle  = 'rgba(255,255,255,0.45)';
+  ctx.font       = '9px sans-serif';
+  ctx.textAlign  = 'right';
+  [minP, (minP + maxP) / 2, maxP].forEach(function(v) {
+    ctx.fillText(v.toFixed(0), padL - 3, yOf(v) + 3);
+  });
+
+  /* X-axis date labels */
+  ctx.textAlign = 'center';
+  [0, Math.floor((pts.length - 1) / 2), pts.length - 1].forEach(function(idx) {
+    var d = new Date(pts[idx].t);
+    ctx.fillText((d.getMonth() + 1) + '/' + d.getDate(), xOf(idx), H - 4);
+  });
+
+  /* Dashed current price line */
+  if (currentPrice && currentPrice >= minP && currentPrice <= maxP) {
+    var cy = yOf(currentPrice);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, cy);
+    ctx.lineTo(W - padR, cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+/* ════════════════════════════════════════
+   POSITION SIZING SUGGESTION
+════════════════════════════════════════ */
+function getPositionSizing(confidence, risk) {
+  var base = confidence >= 90 ? 8 : confidence >= 80 ? 6 : confidence >= 70 ? 4 : 2;
+  if (risk === 'High') base = Math.max(1, base - 2);
+  if (risk === 'Low')  base += 1;
+  return base + '–' + (base + 2) + '%';
 }
 
 /* ── Tooltip state ── */
@@ -106,6 +265,8 @@ document.addEventListener('DOMContentLoaded', function() {
   /* apiLoadKeys() removed — Finnhub/NewsAPI not used client-side */
   try { updateMarketStatus(); } catch(e) {}
   try { initRecs(); }        catch(e) { console.error('initRecs', e); }
+  /* Snapshot actions after first build — used for UPGRADED/DOWNGRADED deltas next session */
+  try { saveActionSnapshot(); } catch(e) {}
   try { renderHome(); }      catch(e) { console.error('renderHome', e); }
   try { renderPicks(); }     catch(e) { console.error('renderPicks', e); }
   try { renderNews('all'); } catch(e) { console.error('renderNews', e); }
@@ -749,6 +910,13 @@ function updateStockPrices(prices) {
       }
       /* Mark as confirmed live — clears the approximate (≈) indicator */
       _stockLivePrices[sym] = true;
+      /* Store 52W / earnings meta when present */
+      if (p.high52w || p.low52w || p.earningsTs) {
+        if (!_stockMeta[sym]) _stockMeta[sym] = {};
+        if (p.high52w)    _stockMeta[sym].high52w    = p.high52w;
+        if (p.low52w)     _stockMeta[sym].low52w     = p.low52w;
+        if (p.earningsTs) _stockMeta[sym].earningsTs = p.earningsTs;
+      }
 
       /* Patch ALL visible price elements in-place across every tab — no full re-render needed */
       var priceText = getCurrencySymbol(sym) + p.price.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1176,15 +1344,18 @@ function renderAlerts() {
 function openStockDetail(sym) {
   var s = STOCKS[sym];
   if (!s) { showToast('Stock not in database', 'info'); return; }
+  _sdChartSym = sym;
+
   var price    = s.price || 0;
-  var chg      = s.chg || 0;
+  var chg      = s.chg   || 0;
   var sdIsLive = !!_stockLivePrices[sym];
   var showT212 = APP.settings.t212 !== false;
+  var meta     = _stockMeta[sym] || {};
 
   document.getElementById('stock-modal-title').textContent = sym + ' — ' + s.name;
 
   var cats = (s.catalysts || []).map(function(c) { return '<li>✓ ' + c + '</li>'; }).join('');
-  var rsks = (s.risks || []).map(function(r) { return '<li>✗ ' + r + '</li>'; }).join('');
+  var rsks = (s.risks     || []).map(function(r) { return '<li>✗ ' + r + '</li>'; }).join('');
 
   var priceDisplay = price
     ? (sdIsLive ? '' : '<span style="color:var(--t3);font-size:12px">≈ </span>') +
@@ -1194,18 +1365,74 @@ function openStockDetail(sym) {
     ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% today'
     : '<span style="color:var(--t3)">Live price loading…</span>';
 
+  /* Delta badge */
+  var delta      = getActionDelta(sym);
+  var deltaBadge = delta
+    ? ' <span class="delta-badge ' + delta.cls + '">' + delta.label +
+      ' <span class="delta-from">' + delta.from + '→' + delta.to + '</span></span>'
+    : '';
+
+  /* Position sizing */
+  var posSize = getPositionSizing(s.score || s.confidence || 70, s.risk || 'Medium');
+
+  /* Earnings countdown */
+  var earningsHtml = '';
+  if (meta.earningsTs) {
+    var daysToEarn = Math.round((meta.earningsTs * 1000 - Date.now()) / 86400000);
+    if (daysToEarn >= 0 && daysToEarn <= 60) {
+      earningsHtml = '<div class="earn-badge"><i class="fas fa-calendar-alt"></i> Earnings in <strong>' + daysToEarn + ' days</strong></div>';
+    }
+  }
+
+  /* 52-Week range bar */
+  var w52Html = '';
+  if (meta.high52w && meta.low52w && price) {
+    var pct52  = Math.max(0, Math.min(100, ((price - meta.low52w) / (meta.high52w - meta.low52w)) * 100));
+    var curr52 = getCurrencySymbol(sym);
+    w52Html = '<div class="w52-bar-wrap">' +
+      '<div class="w52-labels">' +
+        '<span>' + curr52 + meta.low52w.toFixed(0) + '</span>' +
+        '<span class="w52-title">52-Week Range</span>' +
+        '<span>' + curr52 + meta.high52w.toFixed(0) + '</span>' +
+      '</div>' +
+      '<div class="w52-bar">' +
+        '<div class="w52-fill" style="width:' + pct52.toFixed(1) + '%"></div>' +
+        '<div class="w52-marker" style="left:calc(' + pct52.toFixed(1) + '% - 4px)"></div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* Period tab active class */
+  function ptCls(r) { return 'sdcp' + (_sdChartPeriod === r ? ' active' : ''); }
+
   var html =
     '<div class="sd-top">' +
       '<div class="sd-ico">' + sym.slice(0, 3) + '</div>' +
       '<div class="sd-info">' +
-        '<h3>' + sym + '</h3>' +
+        '<h3>' + sym + deltaBadge + '</h3>' +
         '<p>' + s.name + ' • ' + (s.sector || '') + ' • ' + (s.exchange || '') + '</p>' +
       '</div>' +
     '</div>' +
     '<div class="sd-price-row">' +
-      '<div class="sd-price">' + priceDisplay + '</div>' +
-      '<div class="sd-chg ' + (sdIsLive ? (chg >= 0 ? 'up' : 'dn') : '') + '">' + chgDisplay + '</div>' +
+      '<div class="sd-price" data-price-sym="' + sym + '">' + priceDisplay + '</div>' +
+      '<div class="sd-chg ' + (sdIsLive ? (chg >= 0 ? 'up' : 'dn') : '') + '" data-chg-sym="' + sym + '">' + chgDisplay + '</div>' +
     '</div>' +
+    earningsHtml +
+    '<div class="sd-chart-wrap">' +
+      '<div class="sd-chart-periods">' +
+        '<button class="' + ptCls('1wk') + '" onclick="changeChartPeriod(\'1wk\')">1W</button>' +
+        '<button class="' + ptCls('1mo') + '" onclick="changeChartPeriod(\'1mo\')">1M</button>' +
+        '<button class="' + ptCls('3mo') + '" onclick="changeChartPeriod(\'3mo\')">3M</button>' +
+        '<button class="' + ptCls('1y')  + '" onclick="changeChartPeriod(\'1y\')">1Y</button>' +
+      '</div>' +
+      '<canvas id="sd-chart-canvas" width="340" height="160"></canvas>' +
+      '<div id="sd-chart-status" class="sd-chart-loading">Loading chart…</div>' +
+    '</div>' +
+    '<div class="sd-rsi-row">' +
+      '<div id="sd-rsi-badge" class="rsi-badge neutral">RSI —</div>' +
+      '<div class="pos-sizing"><i class="fas fa-balance-scale"></i> Suggested: <strong>' + posSize + '</strong> allocation</div>' +
+    '</div>' +
+    w52Html +
     '<div class="sd-stats">' +
       '<div class="sd-stat"><div class="sd-stat-l">12M Target</div><div class="sd-stat-v" style="color:var(--green)">' + (s.target12m || '—') + '</div></div>' +
       '<div class="sd-stat"><div class="sd-stat-l">Long-Term</div><div class="sd-stat-v" style="color:var(--purple)">' + (s.targetLong || '—') + '</div></div>' +
@@ -1225,6 +1452,55 @@ function openStockDetail(sym) {
 
   document.getElementById('stock-modal-inner').innerHTML = html;
   openModal('stock-modal');
+
+  /* Async: fetch history → draw chart + RSI + update 52W */
+  _loadChartForModal(sym, _sdChartPeriod, price);
+}
+
+function _loadChartForModal(sym, range, currentPrice) {
+  fetchHistory(sym, range).then(function(hist) {
+    var statusEl = document.getElementById('sd-chart-status');
+    var canvas   = document.getElementById('sd-chart-canvas');
+    if (!canvas) return; /* modal closed */
+    if (!hist || !hist.closes || hist.closes.length < 2) {
+      if (statusEl) { statusEl.textContent = 'Chart data unavailable'; statusEl.style.display = 'block'; }
+      return;
+    }
+    if (statusEl) statusEl.style.display = 'none';
+    drawStockChart(canvas, hist.closes, hist.timestamps, currentPrice);
+
+    /* RSI */
+    var rsi   = calcRSI(hist.closes, 14);
+    var rsiEl = document.getElementById('sd-rsi-badge');
+    if (rsiEl && rsi !== null) {
+      var rsiLabel = rsi < 30 ? 'Oversold' : rsi < 50 ? 'Value Zone' : rsi < 70 ? 'Neutral' : 'Overbought';
+      var rsiCls   = rsi < 30 ? 'oversold' : rsi < 50 ? 'value'   : rsi < 70 ? 'neutral'  : 'overbought';
+      rsiEl.textContent = 'RSI ' + rsi + ' — ' + rsiLabel;
+      rsiEl.className   = 'rsi-badge ' + rsiCls;
+    }
+
+    /* Populate meta from history if not already in _stockMeta */
+    if (!_stockMeta[sym]) _stockMeta[sym] = {};
+    if (!_stockMeta[sym].high52w && hist.high52w) _stockMeta[sym].high52w = hist.high52w;
+    if (!_stockMeta[sym].low52w  && hist.low52w)  _stockMeta[sym].low52w  = hist.low52w;
+    if (!_stockMeta[sym].earningsTs && hist.earningsTs) _stockMeta[sym].earningsTs = hist.earningsTs;
+  }).catch(function() {
+    var statusEl = document.getElementById('sd-chart-status');
+    if (statusEl) { statusEl.textContent = 'Chart unavailable'; statusEl.style.display = 'block'; }
+  });
+}
+
+function changeChartPeriod(range) {
+  _sdChartPeriod = range;
+  document.querySelectorAll('.sdcp').forEach(function(b) { b.classList.remove('active'); });
+  var rangeOrder = ['1wk', '1mo', '3mo', '1y'];
+  var idx = rangeOrder.indexOf(range);
+  var btns = document.querySelectorAll('.sdcp');
+  if (btns[idx]) btns[idx].classList.add('active');
+  var statusEl = document.getElementById('sd-chart-status');
+  if (statusEl) { statusEl.textContent = 'Loading…'; statusEl.style.display = 'block'; }
+  var currentPrice = _sdChartSym && STOCKS[_sdChartSym] ? (STOCKS[_sdChartSym].price || 0) : 0;
+  _loadChartForModal(_sdChartSym, range, currentPrice);
 }
 
 /* Called by watchlist autocomplete when user selects a stock from suggestions */
