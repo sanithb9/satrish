@@ -20,6 +20,10 @@ var _cache   = null;
 var _cacheTs = 0;
 const CACHE_TTL = 15 * 60 * 1000;
 
+/* ─── History cache (per symbol+range) ─────────────────────────── */
+var _historyCache = {};
+const HISTORY_TTL = 15 * 60 * 1000;
+
 /* ─── Scheduler state ───────────────────────────────────────────── */
 var _lastChecked      = null;
 var _scheduleTimer    = null;
@@ -535,7 +539,8 @@ function yahooChartFetch(symbol) {
       regularMarketDayHigh:meta.regularMarketDayHigh || null,
       regularMarketDayLow: meta.regularMarketDayLow  || null,
       fiftyTwoWeekHigh:    meta.fiftyTwoWeekHigh     || null,
-      fiftyTwoWeekLow:     meta.fiftyTwoWeekLow      || null
+      fiftyTwoWeekLow:     meta.fiftyTwoWeekLow      || null,
+      earningsTimestamp:   meta.earningsTimestamp     || null
     };
   }).catch(function(e) {
     console.error('[yahoo] yahooChartFetch exception sym=' + symbol + ' err=' + e.message);
@@ -550,6 +555,93 @@ function yahooFetch(symbols) {
     var filtered = results.filter(Boolean);
     return filtered.length > 0 ? { quoteResponse: { result: filtered, error: null } } : null;
   }).catch(function() { return null; });
+}
+
+/* ─── /api/history — OHLC close history for chart rendering ─────── */
+/* Returns: { closes[], timestamps[], high52w, low52w, earningsTs, currency } */
+function handleHistory(req, res) {
+  var parsed  = url_mod.parse(req.url, true);
+  var sym     = (parsed.query.symbol || '').trim().toUpperCase();
+  var range   = (parsed.query.range  || '3mo').trim();
+  /* Validate range — only allow known values */
+  var VALID_RANGES = { '1wk': '5d', '1mo': '1mo', '3mo': '3mo', '6mo': '6mo', '1y': '1y' };
+  var yfRange = VALID_RANGES[range];
+  if (!sym || !yfRange) {
+    return sendJSON(res, 400, { error: 'invalid symbol or range' });
+  }
+  var cacheKey = sym + '_' + range;
+  var cached   = _historyCache[cacheKey];
+  if (cached && (Date.now() - cached.ts) < HISTORY_TTL) {
+    return sendJSON(res, 200, cached.data);
+  }
+  if (yahooIsBlocked()) {
+    return sendJSON(res, 503, { error: 'yahoo rate-limited' });
+  }
+  getYahooCrumb().then(function(crumb) {
+    var qs   = '?interval=1d&range=' + yfRange + (crumb ? '&crumb=' + encodeURIComponent(crumb) : '');
+    var path = '/v8/finance/chart/' + encodeURIComponent(sym) + qs;
+    var cookieArgs = [];
+    try {
+      if (_yahooCrumb.value && fs.existsSync(_COOKIE_JAR)) cookieArgs = ['-b', _COOKIE_JAR];
+    } catch(e) {}
+
+    function doFetch(baseUrl) {
+      return new Promise(function(resolve) {
+        var args = [
+          '-s', '--max-time', '12', '-L',
+          '-w', '\n__STATUS__:%{http_code}',
+          '-H', 'User-Agent: ' + _BROWSER_UA,
+          '-H', 'Accept: application/json,*/*',
+          '-H', 'Accept-Language: en-US,en;q=0.9',
+          '-H', 'Referer: https://finance.yahoo.com'
+        ].concat(cookieArgs).concat([baseUrl + path]);
+        execFile('curl', args, { maxBuffer: 8 * 1024 * 1024, timeout: 15000 }, function(err, stdout) {
+          var raw    = stdout || '';
+          var marker = raw.lastIndexOf('\n__STATUS__:');
+          var body   = marker >= 0 ? raw.slice(0, marker) : raw;
+          var status = marker >= 0 ? raw.slice(marker + '\n__STATUS__:'.length).trim() : '?';
+          if (status === '429') { yahooSet429(); resolve(null); return; }
+          if (err || !body.trim()) { resolve(null); return; }
+          try { resolve(JSON.parse(body)); } catch(e) { resolve(null); }
+        });
+      });
+    }
+
+    var q1 = 'https://query1.finance.yahoo.com';
+    var q2 = 'https://query2.finance.yahoo.com';
+    doFetch(q1).then(function(d) {
+      if (d && d.chart && d.chart.result) return d;
+      if (yahooIsBlocked()) return null;
+      return doFetch(q2);
+    }).then(function(d) {
+      if (!d || !d.chart || !d.chart.result || !d.chart.result[0]) {
+        return sendJSON(res, 502, { error: 'no data from yahoo' });
+      }
+      var r          = d.chart.result[0];
+      var meta       = r.meta || {};
+      var timestamps = (r.timestamp || []).map(function(t) { return t * 1000; });
+      var quotes     = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
+      var closes     = (quotes.close || []).map(function(c) { return c != null ? parseFloat(c.toFixed(4)) : null; });
+      /* Remove nulls at tail (market still open) */
+      while (closes.length && closes[closes.length - 1] == null) {
+        closes.pop(); timestamps.pop();
+      }
+      var result = {
+        symbol:      sym,
+        currency:    meta.currency || 'USD',
+        closes:      closes,
+        timestamps:  timestamps,
+        high52w:     meta.fiftyTwoWeekHigh  || null,
+        low52w:      meta.fiftyTwoWeekLow   || null,
+        earningsTs:  meta.earningsTimestamp || null
+      };
+      _historyCache[cacheKey] = { ts: Date.now(), data: result };
+      sendJSON(res, 200, result);
+    }).catch(function(e) {
+      console.error('[history] exception sym=' + sym + ' ' + e.message);
+      sendJSON(res, 500, { error: 'internal error' });
+    });
+  }).catch(function() { sendJSON(res, 503, { error: 'crumb unavailable' }); });
 }
 
 /* ─── Layer 2: Alpha Vantage (backup, single symbol) ────────────── */
@@ -1794,6 +1886,9 @@ var server = http.createServer(function(req, res) {
   }
   if (url === '/api/quotes' && req.method === 'GET') {
     return handleQuotes(req, res);
+  }
+  if (url.startsWith('/api/history') && req.method === 'GET') {
+    return handleHistory(req, res);
   }
   if (url === '/api/analyze') {
     return handleAnalyze(res);

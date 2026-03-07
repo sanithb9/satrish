@@ -268,6 +268,25 @@ function renderPortfolioSummary() {
     counts[a.cls] = (counts[a.cls] || 0) + 1;
   });
 
+  /* Sector concentration */
+  var sectorMap = {};
+  var total = PORTFOLIO.holdings.length;
+  PORTFOLIO.holdings.forEach(function(h) {
+    var sec = (STOCKS && STOCKS[h.sym] && STOCKS[h.sym].sector) || 'Other';
+    sectorMap[sec] = (sectorMap[sec] || 0) + 1;
+  });
+  var sectorBars = Object.keys(sectorMap).sort(function(a, b) {
+    return sectorMap[b] - sectorMap[a];
+  }).map(function(sec) {
+    var pct = Math.round((sectorMap[sec] / total) * 100);
+    var warn = pct > 40 ? ' conc-warn' : '';
+    return '<div class="conc-row' + warn + '">' +
+      '<span class="conc-name">' + sec + '</span>' +
+      '<div class="conc-bar"><div class="conc-fill' + warn + '" style="width:' + pct + '%"></div></div>' +
+      '<span class="conc-pct">' + pct + '%</span>' +
+    '</div>';
+  }).join('');
+
   el.innerHTML =
     '<div class="port-ai-summary">' +
       '<div class="pas-title"><i class="fas fa-brain"></i> AI Portfolio Snapshot — ' +
@@ -279,7 +298,8 @@ function renderPortfolioSummary() {
         (counts.watch ? '<span class="pas-pill watch"><i class="fas fa-eye"></i> '         + counts.watch + ' WATCH</span>'     : '') +
         (counts.avoid ? '<span class="pas-pill avoid"><i class="fas fa-hand-paper"></i> ' + counts.avoid + ' SELL NOW</span>'  : '') +
       '</div>' +
-    '</div>';
+    '</div>' +
+    (sectorBars ? '<div class="port-concentration"><div class="conc-title"><i class="fas fa-chart-pie"></i> Sector Concentration</div>' + sectorBars + '</div>' : '');
 }
 
 function renderPortfolioHoldings() {

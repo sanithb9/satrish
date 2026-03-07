@@ -1112,3 +1112,165 @@ body{
 .diag-cache-chip.up{background:rgba(34,197,94,.12);color:var(--green)}
 .diag-cache-chip.dn{background:rgba(239,68,68,.10);color:var(--red)}
 .diag-cache-age{font-weight:400;opacity:.7}
+
+/* ================================================================
+   STOCK DETAIL — CHART, RSI, 52W, EARNINGS, DELTA, POSITION SIZE
+   ================================================================ */
+
+/* Chart wrapper */
+.sd-chart-wrap{
+  position:relative;
+  background:var(--bg3);
+  border-radius:10px;
+  padding:10px 0 4px;
+  margin:12px 0 8px;
+  overflow:hidden;
+}
+.sd-chart-periods{
+  display:flex;gap:4px;padding:0 10px 8px;
+}
+.sdcp{
+  flex:1;
+  font-size:11px;font-weight:700;
+  padding:4px 0;
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:transparent;
+  color:var(--t3);
+  cursor:pointer;
+  transition:all .2s;
+}
+.sdcp.active{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#fff;
+}
+#sd-chart-canvas{
+  display:block;
+  width:100%;
+  height:auto;
+  max-height:160px;
+}
+.sd-chart-loading{
+  position:absolute;
+  bottom:26px;left:50%;
+  transform:translateX(-50%);
+  font-size:11px;color:var(--t3);
+  pointer-events:none;
+}
+
+/* RSI + Position sizing row */
+.sd-rsi-row{
+  display:flex;align-items:center;
+  gap:10px;margin:6px 0 10px;
+  flex-wrap:wrap;
+}
+.rsi-badge{
+  font-size:11px;font-weight:700;
+  padding:4px 10px;border-radius:20px;
+  white-space:nowrap;
+}
+.rsi-badge.oversold { background:rgba(147,51,234,.2); color:#a855f7; }
+.rsi-badge.value    { background:rgba(34,197,94,.15);  color:var(--green); }
+.rsi-badge.neutral  { background:var(--bg4);           color:var(--t2); }
+.rsi-badge.overbought{ background:rgba(239,68,68,.15); color:var(--red); }
+.pos-sizing{
+  font-size:11px;color:var(--t2);
+  display:flex;align-items:center;gap:5px;
+}
+.pos-sizing i{ color:var(--t3); }
+.pos-sizing strong{ color:var(--t1); }
+
+/* 52-Week range bar */
+.w52-bar-wrap{
+  margin:4px 0 12px;
+}
+.w52-labels{
+  display:flex;justify-content:space-between;
+  font-size:10px;color:var(--t3);
+  margin-bottom:5px;
+}
+.w52-title{ color:var(--t2);font-weight:600; }
+.w52-bar{
+  position:relative;
+  height:6px;
+  background:var(--bg4);
+  border-radius:3px;
+  overflow:visible;
+}
+.w52-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--red),var(--yellow),var(--green));
+  border-radius:3px;
+}
+.w52-marker{
+  position:absolute;
+  top:-3px;
+  width:12px;height:12px;
+  border-radius:50%;
+  background:#fff;
+  border:2px solid var(--accent);
+  transform:translateX(-50%);
+  pointer-events:none;
+}
+
+/* Earnings countdown badge */
+.earn-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;font-weight:600;
+  padding:5px 12px;
+  border-radius:20px;
+  background:rgba(234,179,8,.12);
+  color:#facc15;
+  margin-bottom:10px;
+}
+.earn-badge i{ opacity:.8; }
+
+/* Action delta badge (UPGRADED / DOWNGRADED) */
+.delta-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:700;
+  padding:2px 8px;border-radius:12px;
+  vertical-align:middle;
+  margin-left:6px;
+  white-space:nowrap;
+}
+.delta-badge.delta-up{ background:rgba(34,197,94,.18);color:var(--green); }
+.delta-badge.delta-dn{ background:rgba(239,68,68,.15);color:var(--red); }
+.delta-from{ font-weight:400;opacity:.8;font-size:9px; }
+
+/* ================================================================
+   PORTFOLIO — SECTOR CONCENTRATION
+   ================================================================ */
+.port-concentration{
+  background:var(--bg3);
+  border-radius:10px;
+  padding:12px 14px;
+  margin:10px 0;
+}
+.conc-title{
+  font-size:11px;font-weight:700;color:var(--t2);
+  margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.conc-row{
+  display:grid;grid-template-columns:90px 1fr 34px;
+  align-items:center;gap:8px;
+  margin-bottom:7px;
+}
+.conc-name{
+  font-size:10px;color:var(--t2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.conc-bar{
+  height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;
+}
+.conc-fill{
+  height:100%;border-radius:3px;
+  background:var(--accent);
+  transition:width .3s;
+}
+.conc-fill.conc-warn{ background:var(--yellow); }
+.conc-row.conc-warn .conc-name,.conc-row.conc-warn .conc-pct{ color:var(--yellow); }
+.conc-pct{
+  font-size:10px;font-weight:700;color:var(--t3);text-align:right;
+}
